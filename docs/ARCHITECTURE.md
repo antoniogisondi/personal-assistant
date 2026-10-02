@@ -194,10 +194,12 @@ from pydantic import BaseModel, Field
 
 Role = Literal["system", "user", "assistant", "tool"]
 
+
 class ToolCall(BaseModel):
     id: str
     name: str
     arguments: dict
+
 
 class Message(BaseModel):
     role: Role
@@ -205,22 +207,26 @@ class Message(BaseModel):
     tool_calls: list[ToolCall] = Field(default_factory=list)
     tool_call_id: str | None = None
 
-class ToolDef(BaseModel):          # schema esposto al modello
+
+class ToolDef(BaseModel):  # schema esposto al modello
     name: str
     description: str
-    parameters: dict               # JSON Schema generato da Pydantic
+    parameters: dict  # JSON Schema generato da Pydantic
+
 
 class Usage(BaseModel):
     input_tokens: int = 0
     output_tokens: int = 0
     cached_tokens: int = 0
 
+
 class ChatRequest(BaseModel):
     messages: list[Message]
     tools: list[ToolDef] = Field(default_factory=list)
     temperature: float | None = None
     max_output_tokens: int | None = None
-    response_schema: dict | None = None      # structured output se supportato
+    response_schema: dict | None = None  # structured output se supportato
+
 
 class ChatResponse(BaseModel):
     message: Message
@@ -229,10 +235,12 @@ class ChatResponse(BaseModel):
     finish_reason: str
     latency_ms: int
 
+
 class StreamChunk(BaseModel):
     delta: str | None = None
     tool_call_delta: dict | None = None
     usage: Usage | None = None
+
 
 class Capabilities(BaseModel):
     tool_calling: bool
@@ -243,9 +251,11 @@ class Capabilities(BaseModel):
     output_cost_per_mtok: float = 0.0
     is_local: bool = False
 
+
 class LLMProvider(Protocol):
     name: str
     capabilities: Capabilities
+
     async def chat(self, req: ChatRequest) -> ChatResponse: ...
     def stream(self, req: ChatRequest) -> AsyncIterator[StreamChunk]: ...
 ```
@@ -255,19 +265,22 @@ class LLMProvider(Protocol):
 from pydantic import BaseModel, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+
 class ModelProfile(BaseModel):
-    provider: str            # "deepseek" | "ollama" | "openai" | ...
+    provider: str  # "deepseek" | "ollama" | "openai" | ...
     model: str
     base_url: str | None = None
-    api_key_ref: str | None = None   # nome del segreto, NON il valore
+    api_key_ref: str | None = None  # nome del segreto, NON il valore
     max_context: int = 32_000
 
+
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="GSOI_", env_nested_delimiter="__",
-                                      env_file=".env")   # .env solo in sviluppo
+    model_config = SettingsConfigDict(
+        env_prefix="GSOI_", env_nested_delimiter="__", env_file=".env"
+    )  # .env solo in sviluppo
     env: str = "dev"
     database_url: SecretStr
-    profiles: dict[str, ModelProfile]    # "reasoning", "fast", "private"
+    profiles: dict[str, ModelProfile]  # "reasoning", "fast", "private"
     default_profile: str = "reasoning"
 ```
 
@@ -300,19 +313,25 @@ class Budget(BaseModel):
     max_cost_usd: float = 0.50
     deadline_s: int = 120
 
+
 async def run(self, run: Run) -> AsyncIterator[AgentEvent]:
-    ctx = await self.context.build(run)            # profilo + memoria rilevante
-    route = await self.router.decide(run, ctx)     # modello + tool subset
-    if route.kind == "direct_tool":                # nessun LLM
+    ctx = await self.context.build(run)  # profilo + memoria rilevante
+    route = await self.router.decide(run, ctx)  # modello + tool subset
+    if route.kind == "direct_tool":  # nessun LLM
         ...
     while not budget.exhausted():
         resp = await self.gateway.chat(route.profile, ctx.messages, tools=route.tools)
         if not resp.message.tool_calls:
-            yield Final(resp.message.content); break
-        results = await asyncio.gather(*(self.executor.execute(c, run) for c in resp.message.tool_calls))
+            yield Final(resp.message.content)
+            break
+        results = await asyncio.gather(
+            *(self.executor.execute(c, run) for c in resp.message.tool_calls)
+        )
         for r in results:
             if r.status == "approval_required":
-                await self.state.suspend(run); yield ApprovalRequired(r.approval); return
+                await self.state.suspend(run)
+                yield ApprovalRequired(r.approval)
+                return
         ctx.append(resp.message, wrap_untrusted(results))
 ```
 
@@ -328,33 +347,37 @@ from enum import IntEnum
 from typing import Any, Awaitable, Callable, Generic, TypeVar
 from pydantic import BaseModel
 
+
 class Risk(IntEnum):
-    READ = 0          # solo lettura (email.search, calendar.list_events)
-    WRITE_LOCAL = 1   # scrittura reversibile/interna (tasks.create, notes.create, bozza)
-    EXTERNAL = 2      # effetto verso terzi o dati altrui (email.send, calendar.create con invitati)
-    DESTRUCTIVE = 3   # irreversibile/finanziario/fisico (delete, acquisti, smart home sensibile)
+    READ = 0  # solo lettura (email.search, calendar.list_events)
+    WRITE_LOCAL = 1  # scrittura reversibile/interna (tasks.create, notes.create, bozza)
+    EXTERNAL = 2  # effetto verso terzi o dati altrui (email.send, calendar.create con invitati)
+    DESTRUCTIVE = 3  # irreversibile/finanziario/fisico (delete, acquisti, smart home sensibile)
+
 
 class DataClass(IntEnum):
     PUBLIC = 0
-    PRIVATE = 1       # email, calendario, file personali
-    SECRET = 2        # credenziali, dati sanitari/finanziari: mai al cloud
+    PRIVATE = 1  # email, calendario, file personali
+    SECRET = 2  # credenziali, dati sanitari/finanziari: mai al cloud
+
 
 TIn = TypeVar("TIn", bound=BaseModel)
 TOut = TypeVar("TOut", bound=BaseModel)
 
+
 class ToolSpec(BaseModel, Generic[TIn, TOut]):
-    name: str                          # "email.search"
+    name: str  # "email.search"
     description: str
     input_model: type[TIn]
     output_model: type[TOut]
     risk: Risk
-    output_data_class: DataClass       # classe dei dati restituiti
-    untrusted_output: bool             # True per email/web/file di terzi
-    scopes: list[str]                  # permessi OAuth/capability richiesti
-    requires_approval: bool | None = None   # None = decide la policy dal rischio
+    output_data_class: DataClass  # classe dei dati restituiti
+    untrusted_output: bool  # True per email/web/file di terzi
+    scopes: list[str]  # permessi OAuth/capability richiesti
+    requires_approval: bool | None = None  # None = decide la policy dal rischio
     idempotent: bool = False
     timeout_s: float = 30
-    domain: str                        # "email", "calendar", … (selezione subset)
+    domain: str  # "email", "calendar", … (selezione subset)
     handler: Callable[[TIn, "ToolContext"], Awaitable[TOut]]
 ```
 
@@ -401,10 +424,11 @@ pgvector: un solo DB, transazioni con i metadati, backup semplice; basta fino a 
 ```python
 class RouteDecision(BaseModel):
     kind: Literal["direct_tool", "local_llm", "cloud_llm"]
-    profile: str | None             # "private" | "fast" | "reasoning"
-    tool_domains: list[str]         # subset di tool esposti
-    reason: str                     # per audit
-    data_ceiling: DataClass         # massimo livello dati consentito all'uscita
+    profile: str | None  # "private" | "fast" | "reasoning"
+    tool_domains: list[str]  # subset di tool esposti
+    reason: str  # per audit
+    data_ceiling: DataClass  # massimo livello dati consentito all'uscita
+
 
 class Router(Protocol):
     async def decide(self, req: UserRequest, ctx: Context) -> RouteDecision: ...
@@ -446,12 +470,13 @@ class Approval(BaseModel):
     id: UUID
     run_id: UUID
     tool: str
-    args_hash: str            # sha256 degli argomenti canonici
-    display: dict             # rendering fedele per l'utente (destinatari, testo, ora…)
+    args_hash: str  # sha256 degli argomenti canonici
+    display: dict  # rendering fedele per l'utente (destinatari, testo, ora…)
     expires_at: datetime
     status: Literal["pending", "approved", "rejected", "expired", "used"]
 
-def issue_token(approval: Approval, key: bytes) -> str: ...   # HMAC(id|tool|args_hash|exp), monouso
+
+def issue_token(approval: Approval, key: bytes) -> str: ...  # HMAC(id|tool|args_hash|exp), monouso
 ```
 
 Il `ToolExecutor` esegue un tool L2/L3 **solo** se presenta un token valido il cui `args_hash` coincide con gli argomenti effettivi; il token viene consumato (anti-replay). Il modello non vede né può forgiare il token. Se il modello modifica la bozza dopo l'approvazione ⇒ hash diverso ⇒ nuova approvazione.
