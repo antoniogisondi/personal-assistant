@@ -242,7 +242,17 @@ def test_wake_word_then_command_then_busy_then_resume() -> None:
     assert p.state is VoiceState.BUSY and rec.wakes == 1 and len(stt.heard) == 1
     resets = wake.resets
     p.resume()
-    assert p.state is VoiceState.WAITING and wake.resets == resets + 1
+    assert p.state is VoiceState.WAITING and wake.resets == resets  # no cold restart
+
+
+def test_detector_stays_warm_while_busy_or_listening() -> None:
+    p, wake, _, _ = make_pipeline()
+    p.enable()
+    wake.script = [0.9]
+    p.feed(quiet(0.1)[0])  # wake -> LISTENING
+    calls = wake.calls
+    feed_all(p, speech(0.5))
+    assert wake.calls > calls  # still fed during the command, score ignored
 
 
 def test_after_resume_a_short_cooldown_ignores_the_tail_of_the_assistants_voice() -> None:
@@ -253,7 +263,7 @@ def test_after_resume_a_short_cooldown_ignores_the_tail_of_the_assistants_voice(
     feed_all(p, speech(1) + quiet(1.5))
     p.resume()
     wake.script = [0.99] * 5
-    feed_all(p, quiet(0.4))  # inside the cooldown: no trigger
+    feed_all(p, quiet(0.25))  # inside the cooldown: no trigger
     assert rec.wakes == 1
 
 

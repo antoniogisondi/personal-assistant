@@ -42,7 +42,7 @@ class VoicePipeline:
         events: VoiceEvents,
         *,
         wake_threshold: float = 0.5,
-        cooldown_frames: int = 12,
+        cooldown_frames: int = 4,
     ) -> None:
         self._wake = wake
         self._stt = transcriber
@@ -87,14 +87,12 @@ class VoicePipeline:
         with self._lock:
             if self._state in (VoiceState.LISTENING, VoiceState.TRANSCRIBING):
                 self._capture = None
-                self._wake.reset()
                 self._set(VoiceState.WAITING)
 
     def resume(self) -> None:
         """The assistant finished (answer shown and spoken): listen for the wake word again."""
         with self._lock:
             if self._state is VoiceState.BUSY:
-                self._wake.reset()  # drop anything it heard of its own voice
                 self._cooldown = self._cooldown_frames
                 self._set(VoiceState.WAITING)
 
@@ -103,12 +101,24 @@ class VoicePipeline:
     def feed(self, frame: np.ndarray) -> None:
         with self._lock:
             state = self._state
-            if state in (VoiceState.OFF, VoiceState.BUSY, VoiceState.TRANSCRIBING):
+            if state in (VoiceState.OFF, VoiceState.TRANSCRIBING):
+                return
+            if state is VoiceState.BUSY:
+                self._keep_warm(frame)
                 return
             if state is VoiceState.WAITING:
                 self._on_waiting(frame)
             elif state is VoiceState.LISTENING:
+                self._keep_warm(frame)
                 self._on_listening(frame)
+
+    def _keep_warm(self, frame: np.ndarray) -> None:
+        """Feed the detector while not waiting, ignoring its score.
+
+        The detector decides from the last ~1.3 s of audio: if it were reset and starved, the
+        next "Hey Jarvis" would be missed or slow until that window refills.
+        """
+        self._wake.predict(frame)
 
     def _on_waiting(self, frame: np.ndarray) -> None:
         level = rms(frame)
@@ -138,7 +148,6 @@ class VoicePipeline:
             return
         self._capture = None
         if result.status is not CaptureStatus.DONE or result.samples is None:
-            self._wake.reset()
             self._set(VoiceState.WAITING)  # timeout or a stray noise
             return
         self._set(VoiceState.TRANSCRIBING)
@@ -169,7 +178,6 @@ class VoicePipeline:
             self._set(VoiceState.BUSY)
             self._events.command(text)
         else:
-            self._wake.reset()
             self._set(VoiceState.WAITING)
 
 
