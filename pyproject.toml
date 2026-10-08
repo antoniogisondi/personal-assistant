@@ -1,0 +1,88 @@
+[project]
+name = "gsoi-assistant"
+version = "0.1.0"
+description = "GSOI Personal Assistant: agentic, modular, privacy-first personal assistant."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi>=0.115",
+  "uvicorn[standard]>=0.30",
+  "pydantic>=2.8",
+  "pydantic-settings>=2.4",
+  "httpx>=0.27",
+  "sqlalchemy[asyncio]>=2.0.30",
+  "asyncpg>=0.29",
+  "alembic>=1.13",
+  "structlog>=24.1",
+  "tenacity>=9.0",
+  "sse-starlette>=2.1",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.2",
+  "pytest-asyncio>=0.24",
+  "respx>=0.21",
+  "aiosqlite>=0.20",
+  "ruff>=0.6",
+  "mypy>=1.11",
+  "import-linter>=2.0",
+  "bandit>=1.7",
+  "pip-audit>=2.7",
+]
+
+[project.scripts]
+gsoi-api = "gsoi_assistant.api.main:run"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/gsoi_assistant"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "ASYNC", "S", "RUF"]
+ignore = ["S101"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S105", "S106"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+plugins = ["pydantic.mypy"]
+mypy_path = "src"
+packages = ["gsoi_assistant"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+addopts = "-ra"
+
+[tool.importlinter]
+root_package = "gsoi_assistant"
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+name = "Layering: api -> agent -> llm -> security/core"
+type = "layers"
+layers = [
+  "gsoi_assistant.api",
+  "gsoi_assistant.agent",
+  "gsoi_assistant.llm",
+  "gsoi_assistant.security | gsoi_assistant.observability | gsoi_assistant.db",
+  "gsoi_assistant.config",
+  "gsoi_assistant.core",
+]
+
+[[tool.importlinter.contracts]]
+name = "LLM providers must not depend on FastAPI or the DB"
+type = "forbidden"
+source_modules = ["gsoi_assistant.llm.providers"]
+forbidden_modules = ["fastapi", "sqlalchemy", "gsoi_assistant.api", "gsoi_assistant.db"]
