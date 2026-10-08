@@ -163,9 +163,11 @@ class FakeWake:
         self.script: list[float] = []
         self.resets = 0
         self.calls = 0
+        self.heard: list[int] = []
 
     def predict(self, frame: np.ndarray) -> float:
         self.calls += 1
+        self.heard.append(int(np.abs(frame).max()))
         return self.script.pop(0) if self.script else 0.0
 
     def reset(self) -> None:
@@ -519,3 +521,19 @@ def test_the_end_pause_setting_controls_how_long_a_long_command_waits() -> None:
     assert samples is not None and len(samples) / 16000 > 8.5
     _, early = run_capture(long_cmd + quiet(4.0) + speech(2.0) + quiet(6.0), floor=40)
     assert early is not None and len(early) / 16000 < 5.5
+
+
+def test_the_detector_never_hears_the_assistants_own_voice() -> None:
+    p, wake, _, rec = make_pipeline()
+    p.enable()
+    wake.script = [0.9]
+    p.feed(quiet(0.1)[0])
+    feed_all(p, quiet(0.5) + speech(1.2) + quiet(1.5))  # the command, then BUSY
+    assert p.state is VoiceState.BUSY
+    before = len(wake.heard)
+    feed_all(p, speech(2.0))  # the assistant's voice through the speakers
+    assert len(wake.heard) > before and max(wake.heard[before:]) == 0
+    p.resume()
+    wake.script = [0.99] * 3  # a (false) high score right after resume is ignored by the cooldown
+    feed_all(p, quiet(0.2))
+    assert rec.wakes == 1

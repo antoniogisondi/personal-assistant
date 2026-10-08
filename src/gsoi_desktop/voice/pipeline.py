@@ -42,7 +42,7 @@ class VoicePipeline:
         events: VoiceEvents,
         *,
         wake_threshold: float = 0.5,
-        cooldown_frames: int = 4,
+        cooldown_frames: int = 8,
         end_pause: float = 1.3,
     ) -> None:
         self._wake = wake
@@ -107,7 +107,9 @@ class VoicePipeline:
             if state in (VoiceState.OFF, VoiceState.TRANSCRIBING):
                 return
             if state is VoiceState.BUSY:
-                self._keep_warm(frame)
+                # The assistant is talking: the detector must never hear its voice (a low
+                # threshold would make it trigger itself), so it is fed silence to stay in step.
+                self._keep_warm(np.zeros_like(frame))
                 return
             if state is VoiceState.WAITING:
                 self._on_waiting(frame)
