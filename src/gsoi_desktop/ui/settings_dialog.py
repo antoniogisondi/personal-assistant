@@ -93,6 +93,12 @@ class SettingsDialog(QDialog):
             "Dopo quanti secondi di silenzio un comando lungo viene eseguito. "
             "I comandi brevi («apri Chrome») partono dopo meno di un secondo."
         )
+        self.tts = QComboBox()
+        self.tts.addItem("Paola (naturale, femminile)", ("piper", "paola"))
+        self.tts.addItem("Riccardo (naturale, maschile)", ("piper", "riccardo"))
+        self.tts.addItem("Voce di Windows (robotica)", ("windows", "paola"))
+        wanted = (config.tts, config.tts_voice)
+        self.tts.setCurrentIndex(max(0, self.tts.findData(wanted)))
         self.voice_test_button = QPushButton("Prova il microfono e «Hey Jarvis»...")
         self.voice_test_button.clicked.connect(self.voice_test_requested.emit)
         self.enroll_button = QPushButton("Insegna «Hey Jarvis» alla tua voce...")
@@ -123,6 +129,7 @@ class SettingsDialog(QDialog):
         layout = QVBoxLayout(self)
         layout.addLayout(form)
         voice_form = QFormLayout()
+        voice_form.addRow("Voce dell'assistente", self.tts)
         voice_form.addRow("Qualità voce", self.voice_model)
         voice_form.addRow("Microfono", self.mic)
         voice_form.addRow("Pausa per concludere un comando lungo", self.end_pause)
@@ -182,6 +189,8 @@ class SettingsDialog(QDialog):
                 "microphone": self.mic.currentData(),
                 "wake_threshold": round(self.wake_threshold.value(), 2),
                 "end_pause": round(self.end_pause.value(), 1),
+                "tts": self.tts.currentData()[0],
+                "tts_voice": self.tts.currentData()[1],
             }
         )
         self.result_value = SettingsResult(cfg, key or None)

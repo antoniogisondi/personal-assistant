@@ -53,6 +53,8 @@ class DesktopConfig(BaseModel):
     voice_model: Literal["base", "small"] = "small"
     microphone: str | None = None
     wake_threshold: float = Field(default=0.5, ge=0.2, le=0.95)
+    tts: Literal["piper", "windows"] = "piper"  # natural local voice, or the Windows one
+    tts_voice: Literal["paola", "riccardo"] = "paola"
     end_pause: float = Field(default=1.3, ge=0.7, le=6.0)  # silence that ends a long command
     personal_wake: bool = True  # use the model taught to the user's voice, when there is one
 

@@ -122,3 +122,11 @@ standard. Mostra quanto ti riconosce (verifica incrociata sulle tue registrazion
 allarmi ha avuto, e si attiva solo se il risultato è migliore del modello standard. Le
 registrazioni non vengono salvate: resta solo `models/personal_wake.npz`. Per tornare al modello
 standard basta eliminare quel file.
+
+## Voce naturale
+
+L'assistente parla con [Piper](https://github.com/OHF-Voice/piper1-gpl): voci italiane neurali che
+girano sul PC (nessun servizio cloud). Al primo avvio scarica la voce scelta (Paola ~63 MB,
+Riccardo ~25 MB) nella cartella dati; finché non è pronta usa la voce di Windows. Si cambia da
+**Impostazioni → Voce dell'assistente** (c'è anche la voce di Windows, più robotica). Le risposte
+vengono dette frase per frase: mentre una frase suona, la successiva è già in preparazione.

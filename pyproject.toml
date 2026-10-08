@@ -46,6 +46,7 @@ desktop = [
   # voice: local wake word + speech recognition + microphone
   "faster-whisper>=1.0",
   "openwakeword>=0.6",
+  "piper-tts>=1.3",
   "onnxruntime>=1.17",
   "sounddevice>=0.4",
   "numpy>=1.26",
@@ -85,7 +86,7 @@ mypy_path = "src"
 packages = ["gsoi_assistant", "gsoi_desktop"]
 
 [[tool.mypy.overrides]]
-module = ["openwakeword", "openwakeword.*", "sounddevice", "faster_whisper", "faster_whisper.*", "ctranslate2", "tzlocal"]
+module = ["openwakeword", "openwakeword.*", "piper", "piper.*", "sounddevice", "faster_whisper", "faster_whisper.*", "ctranslate2", "tzlocal"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

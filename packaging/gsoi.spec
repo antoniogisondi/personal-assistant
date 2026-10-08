@@ -27,7 +27,7 @@ from gsoi_desktop.voice.wake import ensure_wake_models  # noqa: E402
 
 ensure_wake_models()  # the wake-word models (a few MB) are bundled, not downloaded by users
 voice_datas, voice_binaries, voice_hidden = [], [], []
-for pkg in ("openwakeword", "faster_whisper", "ctranslate2", "onnxruntime", "sounddevice", "av", "tokenizers"):
+for pkg in ("openwakeword", "piper", "faster_whisper", "ctranslate2", "onnxruntime", "sounddevice", "av", "tokenizers"):
     d, b, h = collect_all(pkg)
     voice_datas += d
     voice_binaries += b

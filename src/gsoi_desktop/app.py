@@ -144,6 +144,7 @@ def run_gui(minimized: bool, quit_after_ms: int | None = None) -> int:
     from gsoi_desktop.ui.services_dialog import ServicesDialog
     from gsoi_desktop.ui.settings_dialog import SettingsDialog
     from gsoi_desktop.ui.speech import Speaker
+    from gsoi_desktop.ui.speech_switch import SpeechSwitch
     from gsoi_desktop.ui.tray import Tray
     from gsoi_desktop.ui.voice_bridge import VoiceBridge
     from gsoi_desktop.voice.audio import list_microphones
@@ -185,7 +186,8 @@ def run_gui(minimized: bool, quit_after_ms: int | None = None) -> int:
     client = ApiClient(runtime.base_url, runtime.token)
     controller = AssistantController(client)
     runner = AsyncRunner()
-    speaker = Speaker()
+    speaker = SpeechSwitch(Speaker())
+    tts_state: dict[str, str | None] = {"voice": None}  # the Piper voice in use (None: Windows)
     autostart = Autostart()
     state = {"config": config}
 
@@ -199,6 +201,49 @@ def run_gui(minimized: bool, quit_after_ms: int | None = None) -> int:
         is_configured=configured,
         read_aloud=lambda: state["config"].read_aloud,
     )
+
+    def apply_tts(cfg: DesktopConfig) -> None:
+        """Use the natural Piper voice (downloaded once) or the Windows one."""
+        from gsoi_desktop.ui.piper_speaker import PiperSpeaker
+        from gsoi_desktop.voice.piper_tts import (
+            VOICES,
+            PiperEngine,
+            download_voice,
+            piper_installed,
+        )
+
+        want = cfg.tts_voice if cfg.tts == "piper" else None
+        if want == tts_state["voice"]:
+            return
+        if want is None:
+            speaker.use(Speaker()).close()
+            tts_state["voice"] = None
+            return
+        if not piper_installed():
+            window.add("note", "La voce naturale non è inclusa in questa installazione.")
+            return
+        tts_state["voice"] = want  # do not start the same download twice
+
+        def load() -> PiperEngine:
+            download_voice(
+                home / "models",
+                want,
+                lambda f: bridge.report_progress(f"Scarico la voce ({VOICES[want].size_mb} MB)", f),
+            )
+            return PiperEngine(home / "models", want)
+
+        def ready(engine: object) -> None:
+            if tts_state["voice"] != want or not isinstance(engine, PiperEngine):
+                return  # the user chose something else meanwhile
+            window.status.setText("")
+            speaker.use(PiperSpeaker(engine)).close()
+
+        def broke(error: Exception) -> None:
+            tts_state["voice"] = None
+            window.status.setText("")
+            window.add("error", f"Voce naturale non disponibile, uso quella di Windows: {error}")
+
+        runner.run(load, ready, broke)
 
     # ---- voice -----------------------------------------------------------------------------
     bridge = VoiceBridge()
@@ -340,6 +385,7 @@ def run_gui(minimized: bool, quit_after_ms: int | None = None) -> int:
         window.status.setText("Applico le impostazioni...")
         runner.run(lambda: runtime.restart(result.config), applied, failed)
         apply_voice(result.config)
+        apply_tts(result.config)
 
     def applied(_: object) -> None:
         window.status.setText("")
@@ -369,6 +415,7 @@ def run_gui(minimized: bool, quit_after_ms: int | None = None) -> int:
 
     if config.voice_enabled:
         apply_voice(config)
+    apply_tts(config)
     if config.autostart and autostart.supported and not autostart.is_enabled():
         autostart.set_enabled(True)  # keep the registry entry pointing at this executable
 
