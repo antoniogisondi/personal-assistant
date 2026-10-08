@@ -12,13 +12,21 @@ import numpy as np
 from gsoi_desktop.voice.audio import AudioSource, rms, to_unit_level
 from gsoi_desktop.voice.personal_wake import EnrollmentResult
 
-PHRASES = 8
+PHRASES = 12
 PHRASE_SECONDS = 2.8
 SPEECH_SECONDS = 15.0
 AMBIENT_SECONDS = 5.0
 MIN_PHRASE_LEVEL = 400.0  # a clip quieter than this contains no voice
 MIN_SPEECH_LEVEL = 300.0
 
+HINTS = (
+    "come lo diresti di solito",
+    "con calma",
+    "un po' più veloce",
+    "un po' più forte",
+    "come se chiamassi qualcuno",
+    "a voce più bassa",
+)
 Step = Callable[[str, str, int, int], None]  # (kind, instruction, index, total)
 Level = Callable[[float], None]
 
@@ -82,7 +90,7 @@ def collect(
     """Walk the user through the recordings (blocking; run it off the UI thread)."""
     out = Recordings()
     for i in range(phrases):
-        on_step("phrase", "Di' «Hey Jarvis», come lo diresti di solito", i + 1, phrases)
+        on_step("phrase", f"Di' «Hey Jarvis» ({HINTS[i % len(HINTS)]})", i + 1, phrases)
         time.sleep(pause)
         if stop.is_set():
             raise EnrollmentAborted
@@ -104,16 +112,22 @@ def collect(
 
 
 def verdict(recall: float, false_alarms: int, stock_recall: float) -> tuple[bool, str]:
-    """(good enough to use, what to tell the user)."""
+    """(good enough to use without reservations, what to tell the user)."""
+    alarms = "1 falso allarme" if false_alarms == 1 else f"{false_alarms} falsi allarmi"
     numbers = (
-        f"Ti riconosce {round(recall * 100)}% delle volte (prima: {round(stock_recall * 100)}%), "
-        f"con {false_alarms} falsi allarmi nei test."
+        f"Ti riconosce {round(recall * 100)}% delle volte al primo tentativo "
+        f"(prima: {round(stock_recall * 100)}%), con {alarms} nei test."
     )
     if false_alarms > 1:
         return False, numbers + " Troppi falsi allarmi: riprova in un ambiente più silenzioso."
-    if recall < 0.75 or recall < stock_recall:
+    if recall < 0.6 or recall < stock_recall + 0.15:
         return False, numbers + " Non è abbastanza buono: riprova più vicino al microfono."
     return True, numbers
+
+
+def usable_anyway(recall: float, false_alarms: int, stock_recall: float) -> bool:
+    """Not great, but clearly better than the stock model and not noisy: the user may choose it."""
+    return false_alarms <= 1 and recall >= stock_recall + 0.15
 
 
 def run_enrollment(

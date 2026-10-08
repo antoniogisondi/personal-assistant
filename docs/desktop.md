@@ -116,7 +116,7 @@ clonata con il tuo consenso, o una voce con licenza.
 
 Il modello standard di «Hey Jarvis» è addestrato su pronunce inglesi: con un accento italiano
 può richiedere di scandire le parole. In **Impostazioni → Insegna «Hey Jarvis» alla tua voce**
-una procedura guidata (circa 45 s) registra 8 volte la frase, 15 s di parlato normale e 5 s di
+una procedura guidata (circa un minuto) registra 12 volte la frase, 15 s di parlato normale e 5 s di
 silenzio, e addestra sul PC un piccolo classificatore sulle caratteristiche audio del modello
 standard. Mostra quanto ti riconosce (verifica incrociata sulle tue registrazioni) e quanti falsi
 allarmi ha avuto, e si attiva solo se il risultato è migliore del modello standard. Le

@@ -15,7 +15,7 @@ from PySide6.QtWidgets import (
 )
 
 from gsoi_desktop.ui.async_call import AsyncRunner
-from gsoi_desktop.voice.enrollment import verdict
+from gsoi_desktop.voice.enrollment import usable_anyway, verdict
 from gsoi_desktop.voice.personal_wake import EnrollmentResult
 
 # The job runs the whole wizard off the UI thread and returns the training result.
@@ -55,8 +55,8 @@ class EnrollDialog(QDialog):
         self._live.progress.connect(self._on_progress)
 
         self.intro = QLabel(
-            "Registrerò la tua voce mentre dici «Hey Jarvis» 8 volte, poi mentre parli e mentre "
-            "sei in silenzio (circa 45 secondi). Resta alla distanza a cui userai l'assistente. "
+            "Registrerò la tua voce mentre dici «Hey Jarvis» 12 volte, poi mentre parli e mentre "
+            "sei in silenzio (circa un minuto). Resta alla distanza a cui userai l'assistente. "
             "Le registrazioni restano sul PC e non vengono salvate: si conserva solo il modello."
         )
         self.intro.setWordWrap(True)
@@ -122,7 +122,13 @@ class EnrollDialog(QDialog):
         self.instruction.setText("Fatto!" if good else "Risultato insufficiente")
         self.counter.setText("")
         self.outcome.setText(text)
-        self.use_button.setVisible(good)
+        anyway = not good and usable_anyway(result.recall, result.false_alarms, result.stock_recall)
+        self.use_button.setText(
+            "Usa questo rilevatore" if good else "Usa comunque (meglio di prima)"
+        )
+        self.use_button.setVisible(good or anyway)
+        if anyway:
+            self.instruction.setText("Migliore di prima, ma non perfetto")
         self.start_button.setEnabled(True)
         self.start_button.setText("Rifai")
 

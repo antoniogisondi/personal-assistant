@@ -88,6 +88,8 @@ def test_verdict_demands_real_improvement_and_few_false_alarms() -> None:
     assert verdict(1.0, 0, 0.5)[0]
     assert not verdict(1.0, 3, 0.5)[0]
     assert not verdict(0.5, 0, 0.4)[0]
+    assert verdict(0.6, 1, 0.12)[0]
+    assert enrollment.usable_anyway(0.5, 1, 0.12) and not enrollment.usable_anyway(0.5, 2, 0.1)
     assert not verdict(0.8, 0, 0.9)[0]
 
 
