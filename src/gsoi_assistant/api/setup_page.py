@@ -48,26 +48,29 @@ button.primary{background:var(--ac);border-color:var(--ac);color:#fff}button:dis
   <h2>Google (Gmail e Calendar) <span class="pill" id="g-status">...</span></h2>
   <p class="mut" id="g-help"></p>
 
-  <div id="g-config" class="hidden">
-    <p class="mut">Una volta sola: incolla le credenziali dell'applicazione Google
-    (<a id="g-guide" href="https://github.com/antoniogisondi/personal-assistant/blob/main/docs/google-setup.md" target="_blank" rel="noopener noreferrer">guida passo passo</a>).
-    Nella console Google, come "URI di reindirizzamento autorizzato" inserisci:</p>
-    <p><code id="g-redirect"></code></p>
-    <label for="g-cid">Client ID</label><input id="g-cid" autocomplete="off" spellcheck="false">
-    <label for="g-sec">Client Secret</label><input id="g-sec" type="password" autocomplete="off" spellcheck="false">
-    <div class="row"><button class="primary" id="g-save">Salva</button></div>
-  </div>
-
   <div id="g-connect" class="hidden"><div class="row">
     <button class="primary" id="g-start">Collega Google</button>
-    <button id="g-unconfig" class="hidden">Cambia credenziali</button>
   </div></div>
 
   <div id="g-done" class="hidden">
     <p class="ok">Account collegato.</p>
     <div class="row"><button id="g-stop">Scollega</button></div>
   </div>
+
   <p id="g-msg" class="mut" role="status"></p>
+
+  <details id="g-dev">
+    <summary class="mut">Impostazioni per lo sviluppatore</summary>
+    <p class="mut">Serve solo a chi installa o crea l'assistente, una volta sola: i tuoi utenti non
+    vedono né inseriscono nulla di questo. Incolla le credenziali dell'applicazione Google
+    (<a href="https://github.com/antoniogisondi/personal-assistant/blob/main/docs/google-setup.md" target="_blank" rel="noopener noreferrer">guida</a>).
+    Come "URI di reindirizzamento autorizzato" usa:</p>
+    <p><code id="g-redirect"></code></p>
+    <label for="g-cid">Client ID</label><input id="g-cid" autocomplete="off" spellcheck="false">
+    <label for="g-sec">Client Secret</label><input id="g-sec" type="password" autocomplete="off" spellcheck="false">
+    <div class="row"><button class="primary" id="g-save">Salva</button>
+    <button id="g-unconfig" class="hidden">Rimuovi credenziali salvate</button></div>
+  </details>
 </section>
 </main>
 <script nonce="__NONCE__">
@@ -98,14 +101,13 @@ button.primary{background:var(--ac);border-color:var(--ac);color:#fff}button:dis
 
   function render(c) {
     $("g-redirect").textContent = c.redirect_uri;
-    show("g-config", !c.configured);
     show("g-connect", c.configured && !c.connected);
     show("g-done", c.connected);
-    show("g-unconfig", c.configured && c.config_source === "app");
-    var label = !c.configured ? "da configurare" : c.connected ? "collegato" : c.status === "needs_reauth" ? "da ricollegare" : "pronto";
+    show("g-unconfig", c.config_source === "app");
+    var label = !c.configured ? "non disponibile" : c.connected ? "collegato" : c.status === "needs_reauth" ? "da ricollegare" : "pronto";
     var pill = $("g-status"); pill.textContent = label; pill.className = "pill " + (c.connected ? "ok" : "");
     $("g-help").textContent = !c.configured
-      ? "Inserisci le credenziali dell'applicazione Google."
+      ? "Google non è ancora stato attivato su questa installazione. Chiedi a chi ti ha fornito l'assistente di completare la configurazione."
       : c.connected ? "L'assistente può leggere le email, il calendario e preparare bozze. Invii e nuovi eventi richiedono sempre la tua conferma."
       : "Premi il pulsante: si apre Google e scegli cosa consentire.";
     if (c.connected && timer) { clearInterval(timer); timer = null; say("g-msg", ""); }

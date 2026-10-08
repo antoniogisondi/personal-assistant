@@ -15,3 +15,6 @@ build/
 
 # local state (auto-generated master key, SQLite files)
 data/
+
+# Google application credentials bundled into a release build (see docs/google-setup.md)
+src/gsoi_assistant/connectors/google/bundled_google_app.json

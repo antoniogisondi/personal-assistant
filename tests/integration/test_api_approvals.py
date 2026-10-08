@@ -117,7 +117,7 @@ async def test_audit_verify_endpoint_and_root_redirect(
     v = (await client.get("/v1/audit/verify")).json()
     assert v["ok"] is True and v["entries"] >= 2
     r = await client.get("/", follow_redirects=False)
-    assert r.status_code in (302, 307) and r.headers["location"] == "/docs"
+    assert r.status_code in (302, 307) and r.headers["location"] == "/setup"
 
 
 async def test_runs_are_private_to_their_owner(client: httpx.AsyncClient) -> None:

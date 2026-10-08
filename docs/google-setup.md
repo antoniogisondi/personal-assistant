@@ -43,11 +43,43 @@ dovranno essere ricollegati).
 
 ## C. Distribuire l'assistente ad altre persone
 
-Chi riceve l'assistente non deve toccare nulla di tutto questo se l'amministratore ha già inserito
-le credenziali dell'applicazione: vede solo **Collega Google**. In un'installazione gestita si
-possono impostare le credenziali nell'ambiente del server invece che da `/setup`
-(`GSOI_GOOGLE_CLIENT_ID` e `GOOGLE_CLIENT_SECRET`); in quel caso hanno la precedenza e la pagina
-le mostra come "gestite dal server".
+Chi usa l'assistente non deve registrare nulla su Google. La regola è: **un'applicazione Google per
+prodotto, non una per utente**. Chi crea il prodotto la registra una volta (parte A) e la fa viaggiare
+dentro l'assistente; l'utente vede solo **Collega Google**.
+
+Come si fa, in ordine di preferenza:
+
+1. **Credenziali incluse nella release** (consigliato per un'app installata sul PC dell'utente).
+   Crea il client OAuth di tipo **Applicazione desktop** e, quando prepari una release, scrivi
+   `src/gsoi_assistant/connectors/google/bundled_google_app.json`:
+   ```json
+   {"client_id": "xxxx.apps.googleusercontent.com", "client_secret": "..."}
+   ```
+   Il file è ignorato da git (non finisce nel repository). Per le app desktop Google non considera il
+   segreto confidenziale, ed è quello che rende accettabile includerlo nel programma.
+2. **Variabili d'ambiente del server** (installazione gestita da un amministratore):
+   `GSOI_GOOGLE_CLIENT_ID` e `GOOGLE_CLIENT_SECRET`. Hanno la precedenza su tutto il resto.
+3. **Da `/setup`** (sezione "Impostazioni per lo sviluppatore"): comodo mentre sviluppi.
+
+Ordine di precedenza: ambiente > credenziali salvate da `/setup` > credenziali incluse nella release.
+
+### Cosa chiede Google prima che altre persone possano usare la tua app
+
+Questo non dipende dal nostro codice ma dalle regole di Google, e conviene saperlo subito
+(verifica i dettagli aggiornati nella loro documentazione):
+
+- **Solo tu e pochi amici (fino a 100 utenti di test):** nessuna verifica. Con l'app in "Testing" il
+  collegamento scade dopo circa 7 giorni; in "In produzione" non verificata no, ma compare un avviso
+  "app non verificata" che l'utente deve superare.
+- **Pubblico generico:** Google richiede la **verifica dell'app**. Gli scope per leggere e comporre
+  email di Gmail sono classificati come **riservati ("restricted")**, e per questi la verifica
+  comprende una valutazione di sicurezza esterna, a pagamento e ripetuta ogni anno. Gli scope di
+  Calendar sono "sensibili": richiedono verifica, ma più leggera.
+- **Alternative se non vuoi affrontare la verifica:** collegare la posta tramite IMAP con password
+  per app (nessuna verifica Google, ma meno comodo per l'utente), oppure limitare il prodotto a
+  Calendar più invio email (scope meno restrittivi).
+
+Per l'uso personale e per far provare l'assistente a poche persone, i punti 1-3 bastano.
 
 ## Provalo
 

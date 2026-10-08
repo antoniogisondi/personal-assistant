@@ -17,7 +17,7 @@ from gsoi_assistant.connectors.google.api import GoogleApi
 from gsoi_assistant.connectors.google.auth import GoogleAuth
 from gsoi_assistant.connectors.google.calendar import CalendarClient, make_calendar_tools
 from gsoi_assistant.connectors.google.gmail import GmailClient, make_gmail_tools
-from gsoi_assistant.connectors.google.hub import GoogleHub
+from gsoi_assistant.connectors.google.hub import GoogleHub, load_bundled_app
 from gsoi_assistant.db.base import make_engine, make_session_factory
 from gsoi_assistant.db.repositories import SqlRepository
 from gsoi_assistant.db.stores import (
@@ -107,6 +107,7 @@ def build_container(
         redirect_uri=settings.google_redirect_uri,
         env_client_id=settings.google_client_id,
         env_client_secret=env_secret,
+        bundled=load_bundled_app(),
     )
     # The Google tools are always registered; they report "not set up" until /setup is completed.
     google_api = GoogleApi(hub)

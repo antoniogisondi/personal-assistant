@@ -7,6 +7,9 @@ effect immediately, without restarting the server.
 
 from __future__ import annotations
 
+import json
+from importlib import resources
+from pathlib import Path
 from typing import Literal
 
 import httpx
@@ -23,7 +26,29 @@ NOT_CONFIGURED = (
     "credentials, then connect their account."
 )
 
-Source = Literal["env", "app"]
+Source = Literal["env", "app", "bundled"]
+BUNDLED_FILE = "bundled_google_app.json"
+
+
+def load_bundled_app(path: Path | None = None) -> tuple[str, SecretStr] | None:
+    """Credentials of the Google application shipped *inside* the product.
+
+    The people who create the product register one Google application and place its Client ID
+    and Secret in `bundled_google_app.json` when building a release (the file is git-ignored).
+    End users then never see or enter any of it. For a Desktop-type OAuth client Google does not
+    treat the secret as confidential, which is what makes shipping it acceptable.
+    """
+    try:
+        raw = (
+            path.read_text("utf-8")
+            if path is not None
+            else resources.files(__package__).joinpath(BUNDLED_FILE).read_text("utf-8")
+        )
+        data = json.loads(raw)
+        client_id, secret = str(data.get("client_id", "")), str(data.get("client_secret", ""))
+    except (OSError, ValueError, AttributeError):
+        return None
+    return (client_id, SecretStr(secret)) if client_id and secret else None
 
 
 class GoogleHub:
@@ -36,6 +61,7 @@ class GoogleHub:
         redirect_uri: str,
         env_client_id: str | None = None,
         env_client_secret: SecretStr | None = None,
+        bundled: tuple[str, SecretStr] | None = None,
         http: httpx.AsyncClient | None = None,
     ) -> None:
         self._oauth = oauth_store
@@ -43,12 +69,16 @@ class GoogleHub:
         self._cipher = cipher
         self.redirect_uri = redirect_uri
         self._http = http
+        self._bundled = bundled
         self.auth: GoogleAuth | None = None
         self.source: Source | None = None
         self.client_id: str | None = None
         if env_client_id and env_client_secret is not None:
             self._build(env_client_id, env_client_secret)
             self.source = "env"
+        elif bundled is not None:
+            self._build(*bundled)
+            self.source = "bundled"
 
     def _build(self, client_id: str, client_secret: SecretStr) -> None:
         self.auth = GoogleAuth(
@@ -65,7 +95,7 @@ class GoogleHub:
         """Pick up the saved configuration (when the environment does not provide one)."""
         if self.source == "env":
             return
-        row = await self._configs.get(PROVIDER)
+        row = await self._configs.get(PROVIDER)  # a saved override wins over the bundled app
         if row is None:
             return
         secret = self._cipher.decrypt_json(row.client_secret_enc)["client_secret"]
@@ -103,6 +133,9 @@ class GoogleHub:
         self.auth = None
         self.source = None
         self.client_id = None
+        if self._bundled is not None:  # fall back to the application shipped with the product
+            self._build(*self._bundled)
+            self.source = "bundled"
 
     def require(self) -> GoogleAuth:
         if self.auth is None:

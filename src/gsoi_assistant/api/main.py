@@ -66,7 +66,12 @@ def create_app(settings: Settings | None = None, container: Container | None = N
         finally:
             await app.state.container.aclose()
 
-    app = FastAPI(title="GSOI Personal Assistant", version=__version__, lifespan=lifespan)
+    app = FastAPI(
+        title="GSOI Personal Assistant",
+        version=__version__,
+        lifespan=lifespan,
+        description="Collega i tuoi servizi dalla pagina [/setup](/setup).",
+    )
 
     @app.middleware("http")
     async def request_context(
@@ -94,7 +99,7 @@ def create_app(settings: Settings | None = None, container: Container | None = N
 
     @app.get("/", include_in_schema=False)
     async def root() -> RedirectResponse:
-        return RedirectResponse("/docs")
+        return RedirectResponse("/setup")
 
     app.include_router(health.router)
     app.include_router(chat.router)
