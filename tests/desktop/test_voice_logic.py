@@ -508,3 +508,14 @@ def test_a_long_command_survives_a_thinking_pause_but_a_short_one_does_not_wait(
     # 1 s of speech then a 1 s pause: already over (short commands answer quickly)
     status, samples = run_capture(quiet(0.5) + speech(1.0) + quiet(1.0) + speech(2.0), floor=40)
     assert samples is not None and len(samples) / 16000 < 2.5
+
+
+def test_the_end_pause_setting_controls_how_long_a_long_command_waits() -> None:
+    long_cmd = quiet(0.5) + speech(3.0)
+    # a 4 s pause then more speech: with a 5 s end pause it is still the same command
+    _, samples = run_capture(
+        long_cmd + quiet(4.0) + speech(2.0) + quiet(6.0), floor=40, long_endpoint=5.0
+    )
+    assert samples is not None and len(samples) / 16000 > 8.5
+    _, early = run_capture(long_cmd + quiet(4.0) + speech(2.0) + quiet(6.0), floor=40)
+    assert early is not None and len(early) / 16000 < 5.5

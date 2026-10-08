@@ -43,12 +43,14 @@ class VoicePipeline:
         *,
         wake_threshold: float = 0.5,
         cooldown_frames: int = 4,
+        end_pause: float = 1.3,
     ) -> None:
         self._wake = wake
         self._stt = transcriber
         self._events = events
         self._threshold = wake_threshold
         self._cooldown_frames = cooldown_frames
+        self._end_pause = end_pause
         self._cooldown = 0
         self._last_logged = 0.0
         self._ambient = 0.0  # slow estimate of the room's background level
@@ -147,7 +149,7 @@ class VoicePipeline:
             log.info("wake_near_miss", score=round(score, 2), threshold=self._threshold)
 
     def _begin_capture(self) -> None:
-        self._capture = CommandCapture(floor=self._ambient)
+        self._capture = CommandCapture(floor=self._ambient, long_endpoint=self._end_pause)
         self._set(VoiceState.LISTENING)
 
     def _on_listening(self, frame: np.ndarray) -> None:

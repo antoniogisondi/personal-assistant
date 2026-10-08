@@ -83,6 +83,16 @@ class SettingsDialog(QDialog):
         self.wake_threshold.setDecimals(2)
         self.wake_threshold.setValue(config.wake_threshold)
         self.wake_threshold.setToolTip("Più basso = più sensibile (scatta più facilmente)")
+        self.end_pause = QDoubleSpinBox()
+        self.end_pause.setRange(0.7, 6.0)
+        self.end_pause.setSingleStep(0.5)
+        self.end_pause.setDecimals(1)
+        self.end_pause.setSuffix(" s")
+        self.end_pause.setValue(config.end_pause)
+        self.end_pause.setToolTip(
+            "Dopo quanti secondi di silenzio un comando lungo viene eseguito. "
+            "I comandi brevi («apri Chrome») partono dopo meno di un secondo."
+        )
         self.voice_test_button = QPushButton("Prova il microfono e «Hey Jarvis»...")
         self.voice_test_button.clicked.connect(self.voice_test_requested.emit)
         self.enroll_button = QPushButton("Insegna «Hey Jarvis» alla tua voce...")
@@ -115,6 +125,7 @@ class SettingsDialog(QDialog):
         voice_form = QFormLayout()
         voice_form.addRow("Qualità voce", self.voice_model)
         voice_form.addRow("Microfono", self.mic)
+        voice_form.addRow("Pausa per concludere un comando lungo", self.end_pause)
         voice_form.addRow("Soglia «Hey Jarvis» (più bassa = più sensibile)", self.wake_threshold)
         for w in (self.autostart, self.read_aloud, self.tool_calling, self.voice):
             layout.addWidget(w)
@@ -170,6 +181,7 @@ class SettingsDialog(QDialog):
                 "voice_model": self.voice_model.currentData(),
                 "microphone": self.mic.currentData(),
                 "wake_threshold": round(self.wake_threshold.value(), 2),
+                "end_pause": round(self.end_pause.value(), 1),
             }
         )
         self.result_value = SettingsResult(cfg, key or None)

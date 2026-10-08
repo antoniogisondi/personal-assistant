@@ -91,7 +91,13 @@ class VoiceService:
             report("Preparo il riconoscimento vocale...", 1.0)
             stt.warm_up()
         wake = self._wake_factory(config.wake_threshold)
-        pipeline = VoicePipeline(wake, stt, self._events, wake_threshold=config.wake_threshold)
+        pipeline = VoicePipeline(
+            wake,
+            stt,
+            self._events,
+            wake_threshold=config.wake_threshold,
+            end_pause=config.end_pause,
+        )
         runner = VoiceRunner(pipeline, self._source_factory(config.microphone))
         runner.start()  # raises if the microphone cannot be opened
         self._pipeline, self._runner = pipeline, runner
