@@ -60,3 +60,8 @@ class OpenWakeWordDetector:
 
     def reset(self) -> None:
         self._model.reset()  # forget buffered audio (e.g. the assistant's own voice)
+
+    def embeddings(self) -> np.ndarray:
+        """The last 16 audio embeddings (16, 96): what the stock model decides from."""
+        features: np.ndarray = self._model.preprocessor.get_features(16)[0]
+        return features
