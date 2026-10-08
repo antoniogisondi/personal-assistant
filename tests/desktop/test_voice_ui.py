@@ -35,8 +35,14 @@ class SpeakingSpeaker(FakeSpeaker):
         assert self.window is not None
         self.window.set_speaking(True)
 
+    def enqueue(self, text: str) -> None:
+        super().enqueue(text)
+        assert self.window is not None
+        self.window.set_speaking(True)
+
     def finish(self) -> None:
         assert self.window is not None
+        self.active = False
         self.window.set_speaking(False)
 
 
@@ -353,3 +359,29 @@ def test_settings_have_a_sensitivity_and_a_test_button(qapp: QApplication) -> No
     d.wake_threshold.setValue(0.3)
     d._save()
     assert d.result_value is not None and d.result_value.config.wake_threshold == 0.3
+
+
+def test_sentences_are_spoken_while_the_answer_is_still_coming_and_not_repeated(
+    qapp: QApplication,
+) -> None:
+    chat = VoiceChat()
+    chat.sentences = ["Hai tre email non lette.", "La prima è di Marco."]
+    chat.next = Turn(text="Hai tre email non lette. La prima è di Marco.")
+    w, _, speaker, finished = make(qapp, chat)
+    w.submit_voice("che email ho")
+    wait_until(lambda: finished == [] and "Marco" in w.transcript.toPlainText())
+    assert speaker.said == ["Hai tre email non lette.", "La prima è di Marco."]  # once each
+    assert finished == []  # still talking
+    speaker.finish()
+    assert finished == [True]
+
+
+def test_if_the_voice_already_finished_when_the_answer_completes_listening_resumes(
+    qapp: QApplication,
+) -> None:
+    chat = VoiceChat()
+    chat.sentences = ["Ho aperto Chrome per te."]
+    w, _, speaker, finished = make(qapp, chat)
+    speaker.enqueue = lambda text: speaker.said.append(text)  # type: ignore[method-assign]  # already done
+    w.submit_voice("apri Chrome")
+    wait_until(lambda: finished == [True])

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+from collections.abc import Callable
 from typing import Any
 
 import httpx
@@ -47,6 +49,33 @@ class ApiClient:
         if conversation_id:
             body["conversation_id"] = conversation_id
         return self._call("POST", "/v1/chat", body)  # type: ignore[no-any-return]
+
+    def chat_stream(
+        self,
+        message: str,
+        conversation_id: str | None,
+        channel: str,
+        on_event: Callable[[str, dict[str, Any]], None],
+    ) -> None:
+        """Run a chat turn and report each server-sent event as it arrives."""
+        body: dict[str, Any] = {"message": message, "channel": channel}
+        if conversation_id:
+            body["conversation_id"] = conversation_id
+        try:
+            with self._http.stream("POST", "/v1/chat/stream", json=body) as resp:
+                if resp.status_code >= 400:
+                    resp.read()
+                    raise ApiError(resp.status_code, _message(resp))
+                name = "message"
+                for line in resp.iter_lines():
+                    if line.startswith("event:"):
+                        name = line[6:].strip()
+                    elif line.startswith("data:"):
+                        on_event(name, json.loads(line[5:].strip()))
+        except httpx.HTTPError as exc:
+            raise ApiError(
+                0, "Non riesco a contattare il servizio interno dell'assistente."
+            ) from exc
 
     def briefing(self, channel: str = "voice") -> dict[str, Any]:
         return self._call("POST", "/v1/briefing", {"channel": channel})  # type: ignore[no-any-return]

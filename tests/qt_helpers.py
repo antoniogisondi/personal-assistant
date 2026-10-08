@@ -24,6 +24,7 @@ def wait_until(cond: Callable[[], bool], timeout: float = 5.0) -> None:
 class FakeChat:
     def __init__(self) -> None:
         self.calls: list[tuple[str, Any]] = []
+        self.sentences: list[str] = []  # sent live before the turn completes
         self.next: Turn | Exception = Turn(text="Ciao!")
         self.decision_result = Turn(text="Email inviata.")
 
@@ -32,6 +33,12 @@ class FakeChat:
         if isinstance(self.next, Exception):
             raise self.next
         return self.next
+
+    def send_streaming(self, text: str, channel: str, on_sentence: Any) -> Turn:
+        turn = self.send(text, channel)
+        for sentence in self.sentences:
+            on_sentence(sentence)
+        return turn
 
     def briefing(self) -> Turn:
         self.calls.append(("briefing", None))
@@ -49,9 +56,14 @@ class FakeSpeaker:
     def __init__(self) -> None:
         self.said: list[str] = []
         self.stopped = 0
+        self.active = False
 
     def speak(self, text: str) -> None:
         self.said.append(text)
+
+    def enqueue(self, text: str) -> None:
+        self.said.append(text)
+        self.active = True
 
     def stop(self) -> None:
         self.stopped += 1

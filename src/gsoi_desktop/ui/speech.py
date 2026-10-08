@@ -13,6 +13,8 @@ class Speaker(QObject):
     def __init__(self, engine: str | None = None) -> None:
         super().__init__()
         self._tts = None
+        self._queue: list[str] = []
+        self._active = False
         try:
             from PySide6.QtTextToSpeech import QTextToSpeech
 
@@ -29,25 +31,61 @@ class Speaker(QObject):
         except Exception:
             self._tts = None  # no speech engine on this machine: stay silent
 
+    def _set_active(self, active: bool) -> None:
+        if active is not self._active:
+            self._active = active
+            self.speaking_changed.emit(active)
+
     def _on_state(self, state: object) -> None:
         from PySide6.QtTextToSpeech import QTextToSpeech
 
-        self.speaking_changed.emit(state == QTextToSpeech.State.Speaking)
+        if state == QTextToSpeech.State.Speaking:
+            self._set_active(True)
+        elif state in (QTextToSpeech.State.Ready, QTextToSpeech.State.Error):
+            self._next()
+
+    def _next(self) -> None:
+        """The current sentence ended: say the next queued one, or report silence."""
+        if self._tts is None:
+            return
+        if self._queue:
+            self._tts.say(self._queue.pop(0))
+        else:
+            self._set_active(False)
+
+    @property
+    def active(self) -> bool:
+        """Speaking, or sentences are still queued."""
+        return self._active
 
     @property
     def available(self) -> bool:
         return self._tts is not None
 
     def speak(self, text: str) -> None:
-        if self._tts is not None and text.strip():
+        """Say a text now, dropping whatever was queued."""
+        self.stop()
+        self.enqueue(text)
+
+    def enqueue(self, text: str) -> None:
+        """Say a text after what is already being said (sentence by sentence)."""
+        if self._tts is None or not text.strip():
+            return
+        if self._active:
+            self._queue.append(text)
+        else:
+            self._set_active(True)
             self._tts.say(text)
 
     def stop(self) -> None:
+        self._queue.clear()
         if self._tts is not None:
             self._tts.stop()
+        self._set_active(False)
 
     def close(self) -> None:
         """Stop speaking and release the engine (call before the app quits)."""
+        self._queue.clear()
         if self._tts is not None:
             self._tts.stop()
             with contextlib.suppress(RuntimeError, TypeError):

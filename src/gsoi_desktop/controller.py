@@ -2,14 +2,25 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any, Protocol
+
+from gsoi_desktop.client import ApiError
+from gsoi_desktop.sentences import SentenceSplitter
 
 
 class Api(Protocol):
     def chat(
         self, message: str, conversation_id: str | None, channel: str = ...
     ) -> dict[str, Any]: ...
+    def chat_stream(
+        self,
+        message: str,
+        conversation_id: str | None,
+        channel: str,
+        on_event: Callable[[str, dict[str, Any]], None],
+    ) -> None: ...
     def briefing(self, channel: str = ...) -> dict[str, Any]: ...
     def decide(
         self, approval_id: str, approve: bool, confirm_tool: str | None
@@ -81,6 +92,42 @@ class AssistantController:
         data = self._api.chat(text, self.conversation_id, channel)
         self.conversation_id = data["conversation_id"]
         return _turn(data)
+
+    def send_streaming(self, text: str, channel: str, on_sentence: Callable[[str], None]) -> Turn:
+        """Like `send`, but hands every sentence of the answer over as soon as it is complete."""
+        splitter = SentenceSplitter()
+        result: dict[str, Any] = {}
+        got_tokens = False
+
+        def emit(parts: list[str]) -> None:
+            for part in parts:
+                on_sentence(part)
+
+        def on_event(name: str, data: dict[str, Any]) -> None:
+            nonlocal got_tokens
+            if name == "run_started":
+                self.conversation_id = str(data["conversation_id"])
+            elif name == "token":
+                got_tokens = True
+                emit(splitter.feed(data.get("delta", "")))
+            elif name == "tool_call_started":
+                emit(splitter.flush())  # "un attimo, controllo": say it before the tool runs
+                got_tokens = False
+            elif name == "final":
+                if not got_tokens:  # e.g. a fast command: the answer arrives whole
+                    emit(splitter.feed(data.get("content", "")))
+                emit(splitter.flush())
+                result.update(data)
+            elif name == "approval_required":
+                emit(splitter.flush())
+                result["approval"] = data
+            elif name == "error":
+                raise ApiError(0, str(data.get("message", "Errore")))
+
+        self._api.chat_stream(text, self.conversation_id, channel, on_event)
+        if not result:
+            raise ApiError(0, "Nessuna risposta dal servizio interno.")
+        return _turn(result)
 
     def briefing(self) -> Turn:
         data = self._api.briefing()

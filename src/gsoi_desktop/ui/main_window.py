@@ -26,13 +26,19 @@ from gsoi_desktop.ui.neural_view import STATE_LABEL, NeuralState, NeuralView
 
 class Chat(Protocol):
     def send(self, text: str, channel: str = ...) -> Turn: ...
+    def send_streaming(
+        self, text: str, channel: str, on_sentence: Callable[[str], None]
+    ) -> Turn: ...
     def briefing(self) -> Turn: ...
     def decide(self, approval: Approval, approve: bool) -> Turn: ...
     def new_conversation(self) -> None: ...
 
 
 class SpeakerLike(Protocol):
+    @property
+    def active(self) -> bool: ...
     def speak(self, text: str) -> None: ...
+    def enqueue(self, text: str) -> None: ...
     def stop(self) -> None: ...
 
 
@@ -88,6 +94,7 @@ class MainWindow(QMainWindow):
     open_settings = Signal()
     open_services = Signal()
     microphone_toggled = Signal()
+    _sentence = Signal(str)  # from the worker thread: a sentence of the answer is ready
     voice_turn_finished = Signal()  # a spoken exchange is over: listen for the wake word again
 
     def __init__(
@@ -179,6 +186,8 @@ class MainWindow(QMainWindow):
         self._listening = False
         self._voice_turn = False
         self._awaiting_speech_end = False
+        self._streamed = False
+        self._sentence.connect(self._on_sentence)
         self._speech_timer = QTimer(self)
         self._speech_timer.setSingleShot(True)
         self._speech_timer.timeout.connect(self._finish_voice_turn)
@@ -301,11 +310,19 @@ class MainWindow(QMainWindow):
         self.add("user", text)
         self.caption.setText(_caption_text(text))
         self._set_busy(True, "Sto pensando...")
+        self._streamed = False
         self._runner.run(
-            lambda: self._chat.send(text, "voice"),
+            lambda: self._chat.send_streaming(text, "voice", self._sentence.emit),
             lambda t: self._on_turn(t, speak=True),
             self._on_error,
         )
+
+    def _on_sentence(self, text: str) -> None:
+        """A sentence of the answer is ready: start saying it while the rest is still coming."""
+        if self._voice_turn:
+            self._streamed = True
+            self.caption.setText(_caption_text(text))
+            self._speaker.enqueue(text)
 
     def request_briefing(self) -> None:
         if self._busy or not self._is_configured():
@@ -331,18 +348,21 @@ class MainWindow(QMainWindow):
         self._set_busy(False)
         self.add("assistant", turn.text)
         spoken = speak and (self._voice_turn or self._read_aloud())
-        if spoken:
+        streamed = self._streamed and self._voice_turn
+        self._streamed = False
+        if spoken and not streamed:
             self._speaker.speak(turn.text)
         if self._voice_turn:
             # Listen again only after the voice has finished (otherwise it would hear itself).
-            self._awaiting_speech_end = spoken
-            if spoken:
+            self._awaiting_speech_end = spoken and (not streamed or self._speaker.active)
+            if self._awaiting_speech_end:
                 self._speech_timer.start(self._speech_safety_ms(turn.text))
             else:
                 self._finish_voice_turn()
         self.input.setFocus()
 
     def _ask_approval(self, approval: Approval, speak: bool) -> None:
+        self._streamed = False
         self._set_busy(False)
         self.add("note", f"Richiesta di permesso: {approval.summary}")
         dialog = ApprovalDialog(approval, self)
