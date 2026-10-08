@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -20,6 +20,14 @@ class ChatRequestBody(BaseModel):
         default=DataClass.PRIVATE,
         description="Sensitivity of this message. SECRET is only ever processed by local models.",
     )
+    channel: Literal["text", "voice"] = Field(
+        default="text", description="'voice' makes the answer suitable to be read aloud."
+    )
+
+
+class BriefingRequestBody(BaseModel):
+    channel: Literal["text", "voice"] = "voice"
+    profile: str | None = None
 
 
 class ApprovalOut(BaseModel):
@@ -80,3 +88,14 @@ class AuditVerifyOut(BaseModel):
 
 class HealthBody(BaseModel):
     status: str
+
+
+class ConnectionOut(BaseModel):
+    provider: str
+    connected: bool
+    status: str
+    scopes: list[str]
+
+
+class ConnectStartOut(BaseModel):
+    auth_url: str = Field(description="Open this URL in your browser to grant access.")

@@ -113,3 +113,32 @@ async def new_run(container: Any, user_id: str = "owner") -> Any:
     return await container.repo.create_run(
         user_id=user_id, conversation_id=cid, user_request="t", route={}
     )
+
+
+async def connect_google(
+    container: Any,
+    *,
+    scopes: tuple[str, ...] | None = None,
+    expires_in: float = 3600,
+    refresh_token: str = "refresh-token-123",
+    access_token: str = "access-token-abc",
+    user_id: str = "owner",
+) -> None:
+    """Store an already-authorised Google connection (as if the OAuth flow had completed)."""
+    import time
+
+    from gsoi_assistant.connectors.google.auth import DEFAULT_SCOPES, PROVIDER
+
+    auth = container.google
+    await auth._store.upsert_credential(
+        user_id=user_id,
+        provider=PROVIDER,
+        scopes=list(scopes if scopes is not None else DEFAULT_SCOPES),
+        token_enc=auth._cipher.encrypt_json(
+            {
+                "refresh_token": refresh_token,
+                "access_token": access_token,
+                "expires_at": time.time() + expires_in,
+            }
+        ),
+    )

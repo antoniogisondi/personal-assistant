@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import timedelta
+from zoneinfo import ZoneInfo
 
 from sqlalchemy.ext.asyncio import AsyncEngine
 
@@ -11,14 +12,27 @@ from gsoi_assistant.agent.loop import AgentLoop
 from gsoi_assistant.agent.service import AgentService
 from gsoi_assistant.agent.state import Budget
 from gsoi_assistant.config.settings import Settings
+from gsoi_assistant.connectors.briefing import make_briefing_tool
+from gsoi_assistant.connectors.google.api import GoogleApi
+from gsoi_assistant.connectors.google.auth import GoogleAuth
+from gsoi_assistant.connectors.google.calendar import CalendarClient, make_calendar_tools
+from gsoi_assistant.connectors.google.gmail import GmailClient, make_gmail_tools
 from gsoi_assistant.db.base import make_engine, make_session_factory
 from gsoi_assistant.db.repositories import SqlRepository
-from gsoi_assistant.db.stores import ApprovalStore, AuditStore, NoteStore, TaskStore, ToolCallStore
+from gsoi_assistant.db.stores import (
+    ApprovalStore,
+    AuditStore,
+    NoteStore,
+    OAuthStore,
+    TaskStore,
+    ToolCallStore,
+)
 from gsoi_assistant.llm.base import LLMProvider
 from gsoi_assistant.llm.gateway import LLMGateway
 from gsoi_assistant.llm.providers.factory import build_provider
 from gsoi_assistant.security.approvals import ApprovalService
 from gsoi_assistant.security.audit import AuditLog
+from gsoi_assistant.security.crypto import TokenCipher
 from gsoi_assistant.security.policy import PolicyEngine, load_policy_config
 from gsoi_assistant.security.secrets import EnvSecretStore, SecretStore
 from gsoi_assistant.tools.base import Services
@@ -40,10 +54,16 @@ class Container:
     tool_calls: ToolCallStore
     executor: ToolExecutor
     agent: AgentService
+    google: GoogleAuth | None = None
+    google_api: GoogleApi | None = None
 
     async def aclose(self) -> None:
         for provider in self.providers.values():
             await provider.aclose()
+        if self.google_api is not None:
+            await self.google_api.aclose()
+        if self.google is not None:
+            await self.google.aclose()
         await self.engine.dispose()
 
 
@@ -70,7 +90,32 @@ def build_container(
         backoff_initial_s=settings.llm_backoff_initial_s,
     )
 
-    registry = ToolRegistry([*BUILTIN_TOOLS, *(extra_tools or [])])
+    tz = ZoneInfo(settings.timezone)
+    google: GoogleAuth | None = None
+    google_api: GoogleApi | None = None
+    gmail: GmailClient | None = None
+    calendar: CalendarClient | None = None
+    connector_tools: list[AnyTool] = []
+    if settings.google_client_id:
+        google = GoogleAuth(
+            store=OAuthStore(sf),
+            cipher=TokenCipher(secrets.get(settings.master_key_ref).get_secret_value()),
+            client_id=settings.google_client_id,
+            client_secret=secrets.get(settings.google_client_secret_ref),
+            redirect_uri=settings.google_redirect_uri,
+        )
+        google_api = GoogleApi(google)
+        gmail, calendar = GmailClient(google_api), CalendarClient(google_api, tz)
+        connector_tools = [*make_gmail_tools(gmail), *make_calendar_tools(calendar)]
+
+    registry = ToolRegistry(
+        [
+            *BUILTIN_TOOLS,
+            *connector_tools,
+            make_briefing_tool(gmail, calendar, tz),
+            *(extra_tools or []),
+        ]
+    )
     audit = AuditLog(AuditStore(sf))
     approvals = ApprovalService(
         ApprovalStore(sf), audit, ttl=timedelta(hours=settings.approval_ttl_hours)
@@ -118,4 +163,6 @@ def build_container(
         tool_calls,
         executor,
         agent,
+        google,
+        google_api,
     )

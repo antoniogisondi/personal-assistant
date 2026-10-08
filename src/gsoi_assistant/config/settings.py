@@ -64,6 +64,14 @@ class Settings(BaseSettings):
     agent_max_cost_usd: float = 0.50
     agent_deadline_s: float = 120.0
 
+    user_address: str = "signore"  # how the assistant greets you ("Buongiorno, signore")
+
+    # Google (Gmail + Calendar). Leave google_client_id unset to disable the connectors.
+    google_client_id: str | None = None
+    google_client_secret_ref: str = "GOOGLE_CLIENT_SECRET"  # noqa: S105  (a name, not a value)
+    google_redirect_uri: str = "http://127.0.0.1:8000/v1/connections/google/callback"
+    master_key_ref: str = "GSOI_MASTER_KEY"  # name of the secret holding the token-encryption key
+
     history_max_messages: int = 40
     llm_max_attempts: int = 3
     llm_backoff_initial_s: float = 0.5

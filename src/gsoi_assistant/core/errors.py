@@ -59,3 +59,14 @@ class CapabilityError(LLMError):
 
 class EgressDeniedError(LLMError):
     """Data classification forbids sending this request to the selected provider."""
+
+
+class ToolError(GsoiError):
+    """A tool failed in a way the *model and user may be told about*.
+
+    The message is authored by us (never raw upstream text), so the executor can return it as is.
+    """
+
+
+class ConnectorNotConnectedError(ToolError):
+    """The external account (e.g. Google) is not connected or needs to be reconnected."""

@@ -7,7 +7,7 @@ from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import select, text, update
+from sqlalchemy import delete, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from gsoi_assistant.core.ids import new_id
@@ -282,3 +282,103 @@ class TaskStore:
                 return False
             task.status = "done"
             return True
+
+
+class OAuthStore:
+    def __init__(self, sf: SessionFactory) -> None:
+        self._sf = sf
+
+    async def save_state(
+        self, *, state: str, user_id: str, provider: str, code_verifier: str, expires_at: datetime
+    ) -> None:
+        async with self._sf() as s, s.begin():
+            await s.execute(
+                delete(models.OAuthState).where(models.OAuthState.expires_at < utcnow())
+            )
+            s.add(
+                models.OAuthState(
+                    state=state,
+                    user_id=user_id,
+                    provider=provider,
+                    code_verifier=code_verifier,
+                    expires_at=expires_at,
+                )
+            )
+
+    async def pop_state(self, state: str, provider: str) -> models.OAuthState | None:
+        """Atomically consume a pending authorization (single use)."""
+        async with self._sf() as s, s.begin():
+            row = await s.get(models.OAuthState, state)
+            if row is None or row.provider != provider:
+                return None
+            await s.delete(row)
+            return row if _aware(row.expires_at) > utcnow() else None
+
+    async def upsert_credential(
+        self, *, user_id: str, provider: str, scopes: list[str], token_enc: str
+    ) -> None:
+        async with self._sf() as s, s.begin():
+            row = (
+                await s.execute(
+                    select(models.OAuthCredential).where(
+                        models.OAuthCredential.user_id == user_id,
+                        models.OAuthCredential.provider == provider,
+                    )
+                )
+            ).scalar_one_or_none()
+            if row is None:
+                s.add(
+                    models.OAuthCredential(
+                        id=new_id(),
+                        user_id=user_id,
+                        provider=provider,
+                        scopes=scopes,
+                        token_enc=token_enc,
+                        status="active",
+                    )
+                )
+            else:
+                row.scopes, row.token_enc, row.status = scopes, token_enc, "active"
+
+    async def get_credential(self, user_id: str, provider: str) -> models.OAuthCredential | None:
+        async with self._sf() as s:
+            return (
+                await s.execute(
+                    select(models.OAuthCredential).where(
+                        models.OAuthCredential.user_id == user_id,
+                        models.OAuthCredential.provider == provider,
+                    )
+                )
+            ).scalar_one_or_none()
+
+    async def update_tokens(self, user_id: str, provider: str, token_enc: str) -> None:
+        async with self._sf() as s, s.begin():
+            await s.execute(
+                update(models.OAuthCredential)
+                .where(
+                    models.OAuthCredential.user_id == user_id,
+                    models.OAuthCredential.provider == provider,
+                )
+                .values(token_enc=token_enc, updated_at=utcnow())
+            )
+
+    async def set_status(self, user_id: str, provider: str, status: str) -> None:
+        async with self._sf() as s, s.begin():
+            await s.execute(
+                update(models.OAuthCredential)
+                .where(
+                    models.OAuthCredential.user_id == user_id,
+                    models.OAuthCredential.provider == provider,
+                )
+                .values(status=status, updated_at=utcnow())
+            )
+
+    async def delete_credential(self, user_id: str, provider: str) -> bool:
+        async with self._sf() as s, s.begin():
+            result = await s.execute(
+                delete(models.OAuthCredential).where(
+                    models.OAuthCredential.user_id == user_id,
+                    models.OAuthCredential.provider == provider,
+                )
+            )
+            return bool(result.rowcount)  # type: ignore[attr-defined]

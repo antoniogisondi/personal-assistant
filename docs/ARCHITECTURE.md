@@ -386,7 +386,7 @@ class ToolSpec(BaseModel, Generic[TIn, TOut]):
 
 **Naming/Catalogo**: i tool previsti nel brief si mappano 1:1; aggiunte consigliate: `email.create_draft` (separato da `email.send`), `email.get_attachment`, `calendar.find_free_slots` (calcolo deterministico locale, non LLM), `memory.propose` (non `store` diretto), `approvals.*` (interni).
 
-**Separazione bozza/invio**: `email.reply_draft` (L1) crea solo una bozza nel provider; `email.send` (L2) accetta **solo** un `draft_id` + `approval_token`, non testo libero. Così ciò che viene inviato è esattamente ciò che l'utente ha visto.
+**Separazione bozza/invio**: `email.reply_draft` (L1) crea solo una bozza nel provider; `email.send` (L2) è sempre soggetto ad approvazione legata all'hash di destinatari, oggetto e testo (ADR 0003): ciò che viene inviato è esattamente ciò che l'utente ha visto. *(Implementazione: `email.send` riceve il contenuto completo, non un `draft_id`.)*
 
 **Aggiungere un tool** = un file `tools.py` nel connettore con `@tool(...)` + test; il registry li scopre per entry-point. Nessuna modifica all'agente.
 

@@ -5,6 +5,7 @@ from pathlib import Path
 
 import httpx
 import pytest
+from cryptography.fernet import Fernet
 from httpx import ASGITransport
 
 from gsoi_assistant.api.container import Container, build_container
@@ -13,6 +14,7 @@ from gsoi_assistant.config.settings import ModelProfile, Settings
 from gsoi_assistant.db.base import Base
 from gsoi_assistant.llm.base import Capabilities
 from gsoi_assistant.llm.testing import ScriptedProvider
+from gsoi_assistant.security.secrets import EnvSecretStore
 from support import Outbox, make_tools
 
 TOKEN = "test-token-0123456789abcdef"
@@ -94,5 +96,47 @@ async def client(settings: Settings, container: Container) -> AsyncIterator[http
     transport = ASGITransport(app=app)
     async with httpx.AsyncClient(
         transport=transport, base_url="http://test", headers={"Authorization": f"Bearer {TOKEN}"}
+    ) as c:
+        yield c
+
+
+# ---- Google-enabled container -------------------------------------------------------------
+
+MASTER_KEY = Fernet.generate_key().decode()
+
+
+@pytest.fixture
+async def gcontainer(
+    tmp_path: Path, cloud: ScriptedProvider, local: ScriptedProvider, outbox: Outbox
+) -> AsyncIterator[Container]:
+    settings = make_settings(
+        tmp_path / "g.db",
+        google_client_id="client-id.apps.googleusercontent.com",
+        timezone="Europe/Rome",
+    )
+    secrets = EnvSecretStore(
+        {"GOOGLE_CLIENT_SECRET": "client-secret-value", "GSOI_MASTER_KEY": MASTER_KEY},
+        dotenv_path=None,
+    )
+    c = build_container(
+        settings,
+        secrets=secrets,
+        providers={"reasoning": cloud, "private": local},
+        extra_tools=make_tools(outbox),
+    )
+    async with c.engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    yield c
+    await c.aclose()
+
+
+@pytest.fixture
+async def gclient(gcontainer: Container) -> AsyncIterator[httpx.AsyncClient]:
+    app = create_app(gcontainer.settings, gcontainer)
+    app.state.container = gcontainer
+    async with httpx.AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://test",
+        headers={"Authorization": f"Bearer {TOKEN}"},
     ) as c:
         yield c

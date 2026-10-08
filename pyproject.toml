@@ -17,6 +17,7 @@ dependencies = [
   "tenacity>=9.0",
   "sse-starlette>=2.1",
   "pyyaml>=6.0",
+  "cryptography>=43.0",
   "tzdata>=2024.1",  # IANA time zones on Windows
 ]
 
@@ -54,7 +55,7 @@ select = ["E", "F", "I", "UP", "B", "SIM", "ASYNC", "S", "RUF"]
 ignore = ["S101"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S105", "S106"]
+"tests/**" = ["S105", "S106", "S107"]
 
 [tool.mypy]
 python_version = "3.11"
@@ -73,11 +74,12 @@ root_package = "gsoi_assistant"
 include_external_packages = true
 
 [[tool.importlinter.contracts]]
-name = "Layering: api -> agent -> tools -> llm -> security -> db -> config -> core"
+name = "Layering: api -> agent -> connectors -> tools -> llm -> security -> db -> config -> core"
 type = "layers"
 layers = [
   "gsoi_assistant.api",
   "gsoi_assistant.agent",
+  "gsoi_assistant.connectors",
   "gsoi_assistant.tools",
   "gsoi_assistant.llm",
   "gsoi_assistant.security | gsoi_assistant.observability",

@@ -14,6 +14,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    UniqueConstraint,
     Uuid,
 )
 from sqlalchemy.orm import Mapped, mapped_column
@@ -166,3 +167,27 @@ class Task(TimestampMixin, Base):
     due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     status: Mapped[str] = mapped_column(String(16), default="open")  # open | done
     source_run_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("runs.id"))
+
+
+class OAuthCredential(TimestampMixin, Base):
+    __tablename__ = "oauth_credentials"
+    __table_args__ = (UniqueConstraint("user_id", "provider", name="uq_oauth_user_provider"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True)
+    user_id: Mapped[str] = mapped_column(String(64), index=True)
+    provider: Mapped[str] = mapped_column(String(32))
+    scopes: Mapped[list[str]] = mapped_column(JSONType)
+    token_enc: Mapped[str] = mapped_column(Text)  # Fernet token; never plaintext
+    status: Mapped[str] = mapped_column(String(16), default="active")  # active | needs_reauth
+
+
+class OAuthState(Base):
+    """Pending authorization (anti-CSRF `state` + PKCE verifier). Single use, short-lived."""
+
+    __tablename__ = "oauth_states"
+
+    state: Mapped[str] = mapped_column(String(128), primary_key=True)
+    user_id: Mapped[str] = mapped_column(String(64))
+    provider: Mapped[str] = mapped_column(String(32))
+    code_verifier: Mapped[str] = mapped_column(String(128))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))

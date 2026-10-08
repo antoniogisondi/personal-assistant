@@ -2,15 +2,19 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import AsyncIterator
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, HTTPException
 from sse_starlette import EventSourceResponse, ServerSentEvent
 
+from gsoi_assistant.agent.prompts import BRIEFING_REQUEST
 from gsoi_assistant.agent.service import ChatCommand, ChatResult
 from gsoi_assistant.api.deps import ContainerDep, UserDep
 from gsoi_assistant.api.schemas import (
     ApprovalOut,
     AuditVerifyOut,
+    BriefingRequestBody,
     ChatRequestBody,
     ChatResponseBody,
     DecisionBody,
@@ -33,6 +37,7 @@ def _command(body: ChatRequestBody, user_id: str, container: ContainerDep) -> Ch
         conversation_id=body.conversation_id,
         profile=profile,
         data_class=body.data_class,
+        channel=body.channel,
     )
 
 
@@ -91,6 +96,37 @@ async def messages(
         raise HTTPException(404, "conversation not found")
     rows = await container.repo.history(conversation_id, 500)
     return [MessageOut(id=m.id, role=m.role, content=m.content) for m in rows]
+
+
+def _briefing_command(
+    body: BriefingRequestBody, user_id: str, container: ContainerDep
+) -> ChatCommand:
+    profile = body.profile or container.settings.default_profile
+    if profile not in container.settings.profiles:
+        raise HTTPException(400, f"unknown profile '{profile}'")
+    hour = datetime.now(ZoneInfo(container.settings.timezone)).hour
+    greeting = "Buongiorno" if hour < 12 else "Buon pomeriggio" if hour < 18 else "Buonasera"
+    return ChatCommand(
+        user_id=user_id,
+        message=BRIEFING_REQUEST.format(greeting=greeting, address=container.settings.user_address),
+        profile=profile,
+        channel=body.channel,
+    )
+
+
+@router.post("/briefing", response_model=ChatResponseBody)
+async def briefing(
+    body: BriefingRequestBody, container: ContainerDep, user_id: UserDep
+) -> ChatResponseBody:
+    """Today's briefing (calendar, email, tasks), phrased for speech by default."""
+    return _body(await container.agent.reply(_briefing_command(body, user_id, container)))
+
+
+@router.post("/briefing/stream")
+async def briefing_stream(
+    body: BriefingRequestBody, container: ContainerDep, user_id: UserDep
+) -> EventSourceResponse:
+    return _sse(container.agent.stream(_briefing_command(body, user_id, container)))
 
 
 # ---- approvals ---------------------------------------------------------------

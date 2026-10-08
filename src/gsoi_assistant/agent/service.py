@@ -12,7 +12,7 @@ import structlog
 from pydantic import BaseModel
 
 from gsoi_assistant.agent.loop import AgentLoop, LoopContext
-from gsoi_assistant.agent.prompts import SYSTEM_PROMPT_V2
+from gsoi_assistant.agent.prompts import SYSTEM_PROMPT_V2, VOICE_STYLE
 from gsoi_assistant.agent.state import RunState
 from gsoi_assistant.core.errors import (
     BadRequestError,
@@ -49,6 +49,7 @@ class ChatCommand(BaseModel):
     conversation_id: uuid.UUID | None = None
     profile: str
     data_class: DataClass = DataClass.PRIVATE
+    channel: str = "text"  # "text" | "voice" (voice answers are written to be spoken)
 
 
 @dataclass(frozen=True)
@@ -187,7 +188,8 @@ class AgentService:
             content=cmd.message,
             data_class=cmd.data_class,
         )
-        messages = [Message(role="system", content=SYSTEM_PROMPT_V2)]
+        system = SYSTEM_PROMPT_V2 + (VOICE_STYLE if cmd.channel == "voice" else "")
+        messages = [Message(role="system", content=system)]
         messages += [Message(role=m.role, content=m.content) for m in history]
         messages.append(Message(role="user", content=cmd.message))
         state = RunState(profile=cmd.profile, data_class=cmd.data_class, messages=messages)

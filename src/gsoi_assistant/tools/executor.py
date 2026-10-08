@@ -17,6 +17,7 @@ from typing import Literal
 import structlog
 from pydantic import ValidationError
 
+from gsoi_assistant.core.errors import ToolError
 from gsoi_assistant.core.redaction import redact, redact_text
 from gsoi_assistant.core.types import Risk
 from gsoi_assistant.db.stores import ToolCallStore
@@ -181,6 +182,21 @@ class ToolExecutor:
                 digest=digest,
                 approval_id=approval_id,
                 error="timeout",
+            )
+        except ToolError as exc:  # expected, user-presentable failure (e.g. account not connected)
+            return await self._finish(
+                call,
+                ctx,
+                started,
+                "error",
+                _error(str(exc)),
+                tool=tool,
+                risk=spec.risk,
+                decision="allow",
+                args=arguments,
+                digest=digest,
+                approval_id=approval_id,
+                error=redact_text(str(exc))[:300],
             )
         except Exception as exc:  # tool bugs must never crash the run, nor leak internals
             log.exception("tool_failed", tool=tool)

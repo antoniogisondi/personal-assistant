@@ -16,10 +16,15 @@ da una policy di sicurezza.
   distruttivo), policy di autorizzazione, approvazioni legate agli argomenti (monouso, con scadenza),
   audit log con catena di hash, difese da prompt injection (contenuti non fidati marcati, "taint"),
   loop dell'agente con budget e sospensione/ripresa. Tool inclusi: `time.now`, `notes.*`, `tasks.*`.
-  Nessun connettore esterno ancora (Gmail/Calendar: fasi 4-5).
+  
+
+- **Fase 4-5:** Gmail (cerca, leggi, bozze, invio con approvazione) e Google Calendar (eventi,
+  slot liberi calcolati, creazione con approvazione), OAuth con PKCE e token cifrati, riepilogo
+  della giornata (`POST /v1/briefing`, in stile parlato). Guida: [docs/google-setup.md](docs/google-setup.md).
 
 API principali: `POST /v1/chat`, `POST /v1/chat/stream`, `GET /v1/approvals`,
-`POST /v1/approvals/{id}/decision`, `GET /v1/runs/{id}`, `GET /v1/audit/verify`.
+`POST /v1/approvals/{id}/decision`, `POST /v1/briefing`, `GET /v1/connections`,
+`GET /v1/runs/{id}`, `GET /v1/audit/verify`.
 
 ## Avvio rapido (sviluppo)
 
