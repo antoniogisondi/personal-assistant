@@ -165,3 +165,12 @@ async def test_stream_egress_denied_is_an_error_event(client: httpx.AsyncClient)
     assert events == [
         ("error", {"type": "error", "code": "egress_denied", "message": events[0][1]["message"]})
     ]
+
+
+async def test_docs_declare_bearer_auth_so_swagger_shows_authorize(
+    client: httpx.AsyncClient,
+) -> None:
+    spec = (await client.get("/openapi.json")).json()
+    schemes = spec["components"]["securitySchemes"]
+    assert any(s.get("type") == "http" and s.get("scheme") == "bearer" for s in schemes.values())
+    assert spec["paths"]["/v1/chat"]["post"]["security"]
