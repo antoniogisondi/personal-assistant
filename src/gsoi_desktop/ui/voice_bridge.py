@@ -14,6 +14,7 @@ class VoiceBridge(QObject):
     heard = Signal(str)
     failed = Signal(str)
     progress = Signal(str, float)
+    timed = Signal(str, float)
 
     # VoiceEvents protocol (called from worker threads; queued to the receiver's thread)
     def state(self, state: VoiceState) -> None:
@@ -30,6 +31,9 @@ class VoiceBridge(QObject):
 
     def error(self, message: str) -> None:
         self.failed.emit(message)
+
+    def timing(self, stage: str, seconds: float) -> None:
+        self.timed.emit(stage, seconds)
 
     def report_progress(self, what: str, fraction: float) -> None:
         self.progress.emit(what, fraction)

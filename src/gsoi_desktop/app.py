@@ -242,7 +242,11 @@ def run_gui(minimized: bool, quit_after_ms: int | None = None) -> int:
             window.status.setText("")
             window.add("error", f"Comando vocale non disponibile: {error}")
 
-        runner.run(lambda: voice.enable(cfg, bridge.report_progress), done, broke)
+        def enable() -> None:
+            voice.set_vocabulary(runtime.app_names())
+            voice.enable(cfg, bridge.report_progress)
+
+        runner.run(enable, done, broke)
 
     def open_voice_test(dialog: SettingsDialog) -> None:
         from gsoi_desktop.ui.voice_test_dialog import VoiceTestDialog, make_default_tester_factory

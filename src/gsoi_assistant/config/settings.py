@@ -59,6 +59,8 @@ class Settings(BaseSettings):
     approval_ttl_hours: int = 24
     tool_output_max_chars: int = 8000
 
+    fast_commands: bool = True  # run clear commands ("apri Chrome") directly, without the model
+
     agent_max_steps: int = 12
     agent_max_tool_calls: int = 25
     agent_max_calls_per_step: int = 8

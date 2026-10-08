@@ -147,7 +147,12 @@ async def test_voice_command_end_to_end(pc_container, cloud: ScriptedProvider) -
     c, pc = pc_container
     cloud._queue = [use("pc.open_app", name="Spotify"), "Ho aperto Spotify."]
     res = await c.agent.reply(
-        ChatCommand(user_id="owner", message="aprimi spotify", profile="reasoning", channel="voice")
+        ChatCommand(
+            user_id="owner",
+            message="mi puoi aprire Spotify, quello della musica, per favore?",
+            profile="reasoning",
+            channel="voice",
+        )
     )
     assert (
         res.status == "done" and res.content == "Ho aperto Spotify." and pc.launched == ["Spotify"]

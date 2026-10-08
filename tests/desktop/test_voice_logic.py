@@ -435,3 +435,54 @@ def test_microphone_errors_become_a_readable_message(monkeypatch: pytest.MonkeyP
     monkeypatch.setitem(sys.modules, "sounddevice", types.SimpleNamespace(InputStream=boom))
     with pytest.raises(MicrophoneError, match="microfono"):
         SoundDeviceSource().start(lambda a: None)
+
+
+# ---- recognition helpers -----------------------------------------------------------------
+
+
+def test_quiet_recordings_are_brought_up_but_loud_ones_are_left_alone() -> None:
+    from gsoi_desktop.voice.stt import normalize_gain
+
+    quiet_audio = (np.sin(np.linspace(0, 200, 16000)) * 1500).astype(np.int16)
+    boosted = normalize_gain(quiet_audio)
+    assert np.abs(boosted).max() > 10000 and boosted.dtype == np.int16
+    assert np.abs(boosted).max() <= 32767
+
+    very_quiet = (np.sin(np.linspace(0, 200, 16000)) * 20).astype(np.int16)
+    assert (
+        np.abs(normalize_gain(very_quiet)).max() <= 20 * 10 + 1
+    )  # gain is capped (no noise blow-up)
+
+    loud_audio = (np.sin(np.linspace(0, 200, 16000)) * 25000).astype(np.int16)
+    assert normalize_gain(loud_audio) is loud_audio
+    silence_audio = np.zeros(1600, np.int16)
+    assert normalize_gain(silence_audio) is silence_audio
+    assert normalize_gain(np.zeros(0, np.int16)).size == 0
+
+
+def test_the_recognition_prompt_includes_the_installed_programs() -> None:
+    from gsoi_desktop.voice.stt import PROMPT, build_prompt
+
+    assert build_prompt([]) == PROMPT
+    p = build_prompt(["Google Chrome", "Spotify", "x", "A" * 40])
+    assert "apri Google Chrome" in p and "apri Spotify" in p
+    assert "apri x" not in p and "A" * 40 not in p  # too short / too long names are skipped
+    many = build_prompt([f"Programma {i}" for i in range(100)])
+    assert many.count("apri ") - PROMPT.count("apri ") <= 25  # the prompt stays short
+
+
+def test_the_pipeline_reports_how_long_recognition_took() -> None:
+    p, wake, _, rec = make_pipeline()
+    seen: list[tuple[str, float]] = []
+    rec.timing = lambda stage, seconds: seen.append((stage, seconds))  # type: ignore[attr-defined]
+    p.enable()
+    wake.script = [0.9]
+    p.feed(quiet(0.1)[0])
+    feed_all(p, quiet(0.5) + speech(1.0) + quiet(1.5))
+    assert seen and seen[0][0] == "recognition" and seen[0][1] >= 0
+
+
+def test_the_command_ends_a_little_sooner_after_a_pause() -> None:
+    status, samples = run_capture(quiet(0.5) + speech(1.0) + quiet(2.0), floor=40)
+    assert status is CaptureStatus.DONE and samples is not None
+    assert len(samples) / 16000 < 1.0 + 0.9  # speech plus roughly the 0.7 s closing pause

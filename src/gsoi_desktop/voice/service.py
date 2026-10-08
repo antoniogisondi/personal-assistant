@@ -43,6 +43,11 @@ class VoiceService:
         self._stt_factory = stt_factory
         self._pipeline: VoicePipeline | None = None
         self._runner: VoiceRunner | None = None
+        self._vocabulary: list[str] = []
+
+    def set_vocabulary(self, names: list[str]) -> None:
+        """Words the user is likely to say (installed programs), to help recognition."""
+        self._vocabulary = names
 
     @property
     def running(self) -> bool:
@@ -80,6 +85,11 @@ class VoiceService:
             )
         report("Carico il riconoscimento vocale...", 1.0)
         stt = self._stt_factory(model_dir(self._models_dir, config.voice_model))
+        if self._vocabulary and hasattr(stt, "set_vocabulary"):
+            stt.set_vocabulary(self._vocabulary)
+        if hasattr(stt, "warm_up"):
+            report("Preparo il riconoscimento vocale...", 1.0)
+            stt.warm_up()
         wake = self._wake_factory(config.wake_threshold)
         pipeline = VoicePipeline(wake, stt, self._events, wake_threshold=config.wake_threshold)
         runner = VoiceRunner(pipeline, self._source_factory(config.microphone))

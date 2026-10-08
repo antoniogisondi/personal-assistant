@@ -148,6 +148,15 @@ class BackendRuntime:
             self._thread.join(timeout=10)
         self._server, self._thread = None, None
 
+    def app_names(self) -> list[str]:
+        """Installed programs, to help the voice recogniser with their names."""
+        if self._pc is None:
+            return []
+        try:
+            return [a.name for a in self._pc.apps()]
+        except Exception:
+            return []
+
     def restart(self, config: DesktopConfig) -> None:
         self.stop()
         self.config = config

@@ -49,6 +49,9 @@ class OpenFolderIn(BaseModel):
 
 class MediaIn(BaseModel):
     action: Literal["play_pause", "next", "previous", "volume_up", "volume_down", "mute"]
+    times: int = Field(
+        default=1, ge=1, le=10, description="How many times to press (volume steps)."
+    )
 
 
 class DoneOut(BaseModel):
@@ -88,7 +91,8 @@ def make_pc_tools(backend: PcBackend) -> list[AnyTool]:
         return OpenedOut(opened=args.folder)
 
     async def media(args: MediaIn, ctx: ToolContext) -> DoneOut:
-        backend.media(args.action)
+        for _ in range(args.times):
+            backend.media(args.action)
         return DoneOut()
 
     return [
@@ -136,6 +140,6 @@ def make_pc_tools(backend: PcBackend) -> list[AnyTool]:
             handler=media,
             risk=Risk.WRITE_LOCAL,
             output_data_class=DataClass.PUBLIC,
-            summarize=lambda a: f"Media: {a.action}",
+            summarize=lambda a: f"Media: {a.action}" + (f" x{a.times}" if a.times > 1 else ""),
         ),
     ]

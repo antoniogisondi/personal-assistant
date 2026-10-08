@@ -9,6 +9,7 @@ from zoneinfo import ZoneInfo
 from pydantic import SecretStr
 from sqlalchemy.ext.asyncio import AsyncEngine
 
+from gsoi_assistant.agent.fast_commands import FastCommands
 from gsoi_assistant.agent.loop import AgentLoop
 from gsoi_assistant.agent.service import AgentService
 from gsoi_assistant.agent.state import Budget
@@ -165,6 +166,9 @@ def build_container(
         loop=loop,
         approvals=approvals,
         history_max_messages=settings.history_max_messages,
+        fast=FastCommands(registry, executor, settings.timezone)
+        if settings.fast_commands
+        else None,
     )
     return Container(
         settings,

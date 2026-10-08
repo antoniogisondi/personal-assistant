@@ -11,6 +11,7 @@ from dataclasses import dataclass
 import structlog
 from pydantic import BaseModel
 
+from gsoi_assistant.agent.fast_commands import FastCommands
 from gsoi_assistant.agent.loop import AgentLoop, LoopContext
 from gsoi_assistant.agent.prompts import SYSTEM_PROMPT_V2, VOICE_STYLE
 from gsoi_assistant.agent.state import RunState
@@ -30,10 +31,11 @@ from gsoi_assistant.core.events import (
     ErrorEvent,
     FinalEvent,
     RunStarted,
+    ToolCallStarted,
     ToolResultEvent,
     UsageInfo,
 )
-from gsoi_assistant.core.redaction import redact_text
+from gsoi_assistant.core.redaction import redact, redact_text
 from gsoi_assistant.core.types import DataClass
 from gsoi_assistant.db.repositories import SqlRepository
 from gsoi_assistant.llm.base import Message
@@ -97,7 +99,9 @@ class AgentService:
         loop: AgentLoop,
         approvals: ApprovalService,
         history_max_messages: int = 40,
+        fast: FastCommands | None = None,
     ) -> None:
+        self._fast = fast
         self._repo = repo
         self._gateway = gateway
         self._loop = loop
@@ -189,12 +193,39 @@ class AgentService:
             data_class=cmd.data_class,
         )
         system = SYSTEM_PROMPT_V2 + (VOICE_STYLE if cmd.channel == "voice" else "")
+        yield RunStarted(run_id=run_id, conversation_id=conversation_id)
+        run = _Run(run_id, conversation_id, cmd.user_id, cmd.data_class)
+        if self._fast is not None:
+            outcome = await self._fast.try_run(cmd.user_id, run_id, cmd.message)
+            if outcome is not None:  # a clear command: done without the language model
+                yield ToolCallStarted(
+                    call_id=outcome.call_id, tool=outcome.tool, arguments=redact(outcome.arguments)
+                )
+                yield ToolResultEvent(
+                    call_id=outcome.call_id, tool=outcome.tool, status="ok", summary=outcome.text
+                )
+                await self._repo.add_message(
+                    conversation_id=conversation_id,
+                    run_id=run_id,
+                    role="assistant",
+                    content=outcome.text,
+                    data_class=cmd.data_class,
+                )
+                await self._repo.finish_run(
+                    run_id, status="done", cost_usd=0.0, result=outcome.text
+                )
+                yield FinalEvent(
+                    run_id=run_id,
+                    content=outcome.text,
+                    model="local",
+                    usage=UsageInfo(),
+                    cost_usd=0.0,
+                )
+                return
         messages = [Message(role="system", content=system)]
         messages += [Message(role=m.role, content=m.content) for m in history]
         messages.append(Message(role="user", content=cmd.message))
         state = RunState(profile=cmd.profile, data_class=cmd.data_class, messages=messages)
-        run = _Run(run_id, conversation_id, cmd.user_id, cmd.data_class)
-        yield RunStarted(run_id=run_id, conversation_id=conversation_id)
         async for ev in self._drive(run, state):
             yield ev
 

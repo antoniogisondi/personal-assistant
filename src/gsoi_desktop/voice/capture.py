@@ -37,7 +37,7 @@ class CommandCapture:
         self,
         *,
         start_timeout: float = 6.0,
-        endpoint: float = 0.9,
+        endpoint: float = 0.7,
         max_seconds: float = 15.0,
         min_seconds: float = 0.3,
         preroll_frames: int = 3,

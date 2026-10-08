@@ -3,15 +3,19 @@
 from __future__ import annotations
 
 import threading
+import time
 from enum import Enum
 from typing import Protocol
 
 import numpy as np
+import structlog
 
 from gsoi_desktop.voice.audio import AudioSource, FrameQueue, rms, to_unit_level
 from gsoi_desktop.voice.capture import CaptureStatus, CommandCapture
 from gsoi_desktop.voice.stt import Transcriber
 from gsoi_desktop.voice.wake import WakeDetector
+
+log = structlog.get_logger(__name__)
 
 
 class VoiceState(Enum):
@@ -139,6 +143,7 @@ class VoicePipeline:
             return
         self._set(VoiceState.TRANSCRIBING)
         self._lock.release()  # transcription is slow: do not block control calls meanwhile
+        started = time.monotonic()
         try:
             text = self._stt.transcribe(result.samples)
             error: str | None = None
@@ -146,6 +151,16 @@ class VoicePipeline:
             text, error = "", f"Non sono riuscito a capire l'audio: {exc}"
         finally:
             self._lock.acquire()
+        took = time.monotonic() - started
+        log.info(
+            "voice_recognised",
+            audio_seconds=round(len(result.samples) / 16000, 2),
+            recognition_seconds=round(took, 2),
+            text_length=len(text),
+        )
+        timing = getattr(self._events, "timing", None)
+        if timing is not None:
+            timing("recognition", took)
         if self._state is not VoiceState.TRANSCRIBING:  # disabled or cancelled meanwhile
             return
         if error:
