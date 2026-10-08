@@ -338,7 +338,7 @@ def run_gui(minimized: bool, quit_after_ms: int | None = None) -> int:
     return int(code)
 
 
-def main(argv: list[str] | None = None) -> int:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="gsoi", description="GSOI Personal Assistant")
     parser.add_argument(
         "--selftest", action="store_true", help="start the backend headless and check it"
@@ -347,7 +347,14 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--gui-selftest", action="store_true", help="open the UI briefly, then exit"
     )
-    args = parser.parse_args(argv)
+    parser.add_argument(
+        "--voice-test", action="store_true", help="diagnose the microphone and the wake word"
+    )
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
     if args.selftest:
         return selftest()
     if args.voice_test:
