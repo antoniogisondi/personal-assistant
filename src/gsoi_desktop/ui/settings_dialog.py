@@ -29,6 +29,7 @@ class SettingsResult:
 
 class SettingsDialog(QDialog):
     voice_test_requested = Signal()
+    enroll_requested = Signal()
 
     def __init__(
         self,
@@ -84,6 +85,8 @@ class SettingsDialog(QDialog):
         self.wake_threshold.setToolTip("Più basso = più sensibile (scatta più facilmente)")
         self.voice_test_button = QPushButton("Prova il microfono e «Hey Jarvis»...")
         self.voice_test_button.clicked.connect(self.voice_test_requested.emit)
+        self.enroll_button = QPushButton("Insegna «Hey Jarvis» alla tua voce...")
+        self.enroll_button.clicked.connect(self.enroll_requested.emit)
         self.voice_note = QLabel(
             "Il riconoscimento avviene sul tuo computer: l'audio non esce da qui. "
             "Parla in inglese per «Hey Jarvis»; il comando che segue puoi dirlo in italiano."
@@ -117,6 +120,7 @@ class SettingsDialog(QDialog):
             layout.addWidget(w)
         layout.addLayout(voice_form)
         layout.addWidget(self.voice_test_button)
+        layout.addWidget(self.enroll_button)
         layout.addWidget(self.voice_note)
         layout.addWidget(self.error)
         layout.addWidget(buttons)

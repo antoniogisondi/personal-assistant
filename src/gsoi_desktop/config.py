@@ -53,6 +53,7 @@ class DesktopConfig(BaseModel):
     voice_model: Literal["base", "small"] = "small"
     microphone: str | None = None
     wake_threshold: float = Field(default=0.5, ge=0.2, le=0.95)
+    personal_wake: bool = True  # use the model taught to the user's voice, when there is one
 
     def is_configured(self, has_key: bool) -> bool:
         provider = PROVIDERS.get(self.provider)

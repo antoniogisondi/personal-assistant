@@ -147,6 +147,8 @@ def run_gui(minimized: bool, quit_after_ms: int | None = None) -> int:
     from gsoi_desktop.ui.tray import Tray
     from gsoi_desktop.ui.voice_bridge import VoiceBridge
     from gsoi_desktop.voice.audio import list_microphones
+    from gsoi_desktop.voice.personal_wake import FILE_NAME as PERSONAL_WAKE_FILE
+    from gsoi_desktop.voice.personal_wake import PersonalWakeDetector
     from gsoi_desktop.voice.pipeline import VoiceState
     from gsoi_desktop.voice.service import VoiceService
 
@@ -200,7 +202,13 @@ def run_gui(minimized: bool, quit_after_ms: int | None = None) -> int:
 
     # ---- voice -----------------------------------------------------------------------------
     bridge = VoiceBridge()
-    voice = VoiceService(home / "models", bridge)
+    personal_path = home / "models" / PERSONAL_WAKE_FILE
+
+    def wake_factory(threshold: float) -> PersonalWakeDetector:
+        use = state["config"].personal_wake
+        return PersonalWakeDetector.create(threshold, personal_path if use else None)
+
+    voice = VoiceService(home / "models", bridge, wake_factory=wake_factory)
 
     def on_voice_state(voice_state: object) -> None:
         if voice_state is VoiceState.LISTENING:
@@ -251,14 +259,16 @@ def run_gui(minimized: bool, quit_after_ms: int | None = None) -> int:
     def open_voice_test(dialog: SettingsDialog) -> None:
         from gsoi_desktop.ui.voice_test_dialog import VoiceTestDialog, make_default_tester_factory
         from gsoi_desktop.voice.wake import (
-            OpenWakeWordDetector,
             VoiceUnavailableError,
             ensure_wake_models,
         )
 
         try:
             ensure_wake_models()
-            detector = OpenWakeWordDetector(dialog.wake_threshold.value())
+            detector = PersonalWakeDetector.create(
+                dialog.wake_threshold.value(),
+                personal_path if state["config"].personal_wake else None,
+            )
         except VoiceUnavailableError as exc:
             window.add("error", f"Prova non disponibile: {exc}")
             return
@@ -277,6 +287,38 @@ def run_gui(minimized: bool, quit_after_ms: int | None = None) -> int:
         finally:
             voice.unpause()
 
+    def open_enrollment(dialog: SettingsDialog) -> None:
+        from gsoi_desktop.ui.enroll_dialog import EnrollDialog
+        from gsoi_desktop.voice.audio import SoundDeviceSource
+        from gsoi_desktop.voice.enrollment import run_enrollment
+        from gsoi_desktop.voice.wake import VoiceUnavailableError, ensure_wake_models
+
+        try:
+            ensure_wake_models()
+        except VoiceUnavailableError as exc:
+            window.add("error", f"Addestramento non disponibile: {exc}")
+            return
+        mic = dialog.mic.currentData()
+        voice.pause()  # the wizard needs the microphone for itself
+
+        def job(on_step, on_level, on_progress, stop):  # type: ignore[no-untyped-def]
+            return run_enrollment(
+                lambda: SoundDeviceSource(mic), on_step, on_level, on_progress, stop
+            )
+
+        saved = False
+        try:
+            wizard = EnrollDialog(runner, job, dialog)
+            wizard.exec()
+            if wizard.accepted_model and wizard.trained is not None:
+                wizard.trained.model.save(personal_path)
+                saved = True
+        finally:
+            voice.unpause()
+        if saved:
+            window.add("note", "Ho imparato «Hey Jarvis» dalla tua voce.")
+            apply_voice(state["config"])  # reload the detector with the new model
+
     def show_settings() -> None:
         dialog = SettingsDialog(
             state["config"],
@@ -286,6 +328,7 @@ def run_gui(minimized: bool, quit_after_ms: int | None = None) -> int:
             parent=window,
         )
         dialog.voice_test_requested.connect(lambda: open_voice_test(dialog))
+        dialog.enroll_requested.connect(lambda: open_enrollment(dialog))
         if dialog.exec() != SettingsDialog.DialogCode.Accepted or dialog.result_value is None:
             return
         result = dialog.result_value
