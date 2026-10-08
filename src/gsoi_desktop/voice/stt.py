@@ -20,10 +20,7 @@ log = structlog.get_logger(__name__)
 
 MODEL_SIZES = {"base": 145, "small": 484, "turbo": 1620}  # approximate download size in MB
 WHISPER_NAMES = {"base": "base", "small": "small", "turbo": "large-v3-turbo"}
-PROMPT = (
-    "Comandi per l'assistente personale: apri Chrome, apri Spotify, riepilogo della giornata, "
-    "email, calendario, appuntamenti, note, attività."
-)
+PROMPT = "Trascrizione fedele in italiano di un comando detto a un assistente."  # neutral: no words to copy
 
 
 class Transcriber(Protocol):
@@ -61,11 +58,10 @@ def normalize_gain(
 
 
 def build_prompt(app_names: list[str]) -> str:
-    """The prompt biases Whisper towards the words this user is likely to say."""
-    names = [n for n in app_names if 2 <= len(n) <= 24][:25]
-    if not names:
-        return PROMPT
-    return PROMPT + " " + ", ".join(f"apri {n}" for n in names) + "."
+    """A neutral prompt plus a few program names. Long lists of example commands make Whisper
+    invent them, so only short, plain vocabulary is given."""
+    names = [n for n in app_names if 3 <= len(n) <= 24][:8]
+    return PROMPT + (f" Nomi di programmi: {', '.join(names)}." if names else "")
 
 
 def register_cuda_libraries() -> None:

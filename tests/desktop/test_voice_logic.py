@@ -473,15 +473,15 @@ def test_quiet_recordings_are_brought_up_but_loud_ones_are_left_alone() -> None:
     assert normalize_gain(np.zeros(0, np.int16)).size == 0
 
 
-def test_the_recognition_prompt_includes_the_installed_programs() -> None:
+def test_the_recognition_prompt_is_neutral_with_a_few_program_names() -> None:
     from gsoi_desktop.voice.stt import PROMPT, build_prompt
 
-    assert build_prompt([]) == PROMPT
+    assert build_prompt([]) == PROMPT and "apri" not in PROMPT
     p = build_prompt(["Google Chrome", "Spotify", "x", "A" * 40])
-    assert "apri Google Chrome" in p and "apri Spotify" in p
-    assert "apri x" not in p and "A" * 40 not in p  # too short / too long names are skipped
+    assert "Google Chrome" in p and "Spotify" in p and "apri" not in p
+    assert "A" * 40 not in p and ", x" not in p  # too short / too long names are skipped
     many = build_prompt([f"Programma {i}" for i in range(100)])
-    assert many.count("apri ") - PROMPT.count("apri ") <= 25  # the prompt stays short
+    assert many.count("Programma") <= 8  # the prompt stays short
 
 
 def test_the_pipeline_reports_how_long_recognition_took() -> None:
