@@ -53,7 +53,7 @@ Prova la chat (documentazione interattiva su http://127.0.0.1:8000/docs):
 
 ```powershell
 $h = @{ Authorization = "Bearer <il tuo GSOI_API_TOKEN>" }
-Invoke-RestMethod -Method Post http://127.0.0.1:8000/v1/chat -Headers $h `  -ContentType "application/json" -Body '{"message":"Ciao, chi sei?"}'
+Invoke-RestMethod -Method Post http://127.0.0.1:8000/v1/chat -Headers $h -ContentType "application/json" -Body '{"message":"Ciao, chi sei?"}'
 ```
 
 ## Qualità
