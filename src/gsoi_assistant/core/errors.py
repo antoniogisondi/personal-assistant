@@ -9,6 +9,10 @@ class NotFoundError(GsoiError):
     pass
 
 
+class DatabaseConfigError(GsoiError):
+    """The configured database cannot be used (bad path, missing folder, permissions)."""
+
+
 class UnknownProfileError(GsoiError):
     pass
 

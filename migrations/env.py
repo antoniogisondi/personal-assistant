@@ -9,7 +9,7 @@ from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import create_async_engine
 
 from gsoi_assistant.db import models  # noqa: F401  (register tables on Base.metadata)
-from gsoi_assistant.db.base import Base
+from gsoi_assistant.db.base import Base, check_database_url
 
 config = context.config
 target_metadata = Base.metadata
@@ -24,6 +24,7 @@ def _url() -> str:
     )
     if not url:
         raise RuntimeError("GSOI_DATABASE_URL is not set (environment or .env)")
+    check_database_url(url)
     return url
 
 
