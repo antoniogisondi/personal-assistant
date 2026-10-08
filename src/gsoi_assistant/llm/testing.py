@@ -33,7 +33,7 @@ class Turn:
     calls: list[ToolUse] = field(default_factory=list)
 
 
-def use(name: str, **arguments: Any) -> Turn:
+def use(name: str, /, **arguments: Any) -> Turn:
     """Shorthand: a turn in which the model calls one tool (by dotted or wire name)."""
     return Turn(calls=[ToolUse(name, arguments)])
 

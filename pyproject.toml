@@ -35,15 +35,28 @@ dev = [
   "types-PyYAML>=6.0",
 ]
 
+desktop = [
+  # PySide6 6.12.0 crashes while painting on Python 3.11 (fine on 3.12-3.14): keep 3.11 on 6.8.
+  "PySide6>=6.7,<6.9; python_version < '3.12'",
+  "PySide6>=6.7; python_version >= '3.12'",
+  "keyring>=25.0",
+  "platformdirs>=4.0",
+  "tzlocal>=5.0",
+  "pyinstaller>=6.0",
+]
+
 [project.scripts]
 gsoi-api = "gsoi_assistant.api.main:run"
+
+[project.gui-scripts]
+gsoi-desktop = "gsoi_desktop.app:main"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/gsoi_assistant"]
+packages = ["src/gsoi_assistant", "src/gsoi_desktop"]
 
 [tool.ruff]
 line-length = 100
@@ -63,7 +76,7 @@ python_version = "3.11"
 strict = true
 plugins = ["pydantic.mypy"]
 mypy_path = "src"
-packages = ["gsoi_assistant"]
+packages = ["gsoi_assistant", "gsoi_desktop"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
@@ -71,7 +84,7 @@ testpaths = ["tests"]
 addopts = "-ra"
 
 [tool.importlinter]
-root_package = "gsoi_assistant"
+root_packages = ["gsoi_assistant", "gsoi_desktop"]
 include_external_packages = true
 
 [[tool.importlinter.contracts]]
@@ -94,3 +107,22 @@ name = "LLM providers must not depend on FastAPI or the DB"
 type = "forbidden"
 source_modules = ["gsoi_assistant.llm.providers"]
 forbidden_modules = ["fastapi", "sqlalchemy", "gsoi_assistant.api", "gsoi_assistant.db"]
+
+[[tool.importlinter.contracts]]
+name = "The backend never depends on the desktop app"
+type = "forbidden"
+source_modules = ["gsoi_assistant"]
+forbidden_modules = ["gsoi_desktop", "PySide6"]
+
+[[tool.importlinter.contracts]]
+name = "Desktop logic (non-UI) does not depend on Qt"
+type = "forbidden"
+source_modules = [
+  "gsoi_desktop.controller",
+  "gsoi_desktop.client",
+  "gsoi_desktop.config",
+  "gsoi_desktop.runtime",
+  "gsoi_desktop.secrets_store",
+  "gsoi_desktop.autostart",
+]
+forbidden_modules = ["PySide6"]

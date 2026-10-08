@@ -57,3 +57,12 @@ def test_database_url_falls_back_to_dotenv(tmp_path: Path, monkeypatch: pytest.M
     command.upgrade(cfg, "head")
     with create_engine(f"sqlite:///{db}").connect() as conn:
         assert "runs" in inspect(conn).get_table_names()
+
+
+def test_upgrade_from_code_uses_the_given_url_even_with_special_characters(tmp_path: Path) -> None:
+    from gsoi_assistant.db.migrate import upgrade_to_head
+
+    db = tmp_path / "with%20odd name.db"
+    upgrade_to_head(f"sqlite+aiosqlite:///{db}")
+    with create_engine(f"sqlite:///{db}").connect() as conn:
+        assert "audit_log" in inspect(conn).get_table_names()

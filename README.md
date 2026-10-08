@@ -22,6 +22,11 @@ da una policy di sicurezza.
   slot liberi calcolati, creazione con approvazione), OAuth con PKCE e token cifrati, riepilogo
   della giornata (`POST /v1/briefing`, in stile parlato). I servizi si collegano da **/setup** (nessun file da modificare). Guida: [docs/google-setup.md](docs/google-setup.md).
 
+- **App desktop (Windows):** programma unico con interfaccia PySide6 (rete neurale animata),
+  icona nella barra, avvio con Windows, servizio interno incorporato, segreti nelle credenziali di
+  Windows, controllo del PC di primo livello (apri programmi, indirizzi web, cartelle).
+  Guida: [docs/desktop.md](docs/desktop.md). Comando vocale: prossimo passo.
+
 API principali: `POST /v1/chat`, `POST /v1/chat/stream`, `GET /v1/approvals`,
 `POST /v1/approvals/{id}/decision`, `POST /v1/briefing`, `GET /v1/connections`,
 `GET /v1/runs/{id}`, `GET /v1/audit/verify`.

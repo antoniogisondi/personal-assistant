@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from collections.abc import AsyncIterator
 from pathlib import Path
 
@@ -16,6 +17,8 @@ from gsoi_assistant.llm.base import Capabilities
 from gsoi_assistant.llm.testing import ScriptedProvider
 from gsoi_assistant.security.secrets import EnvSecretStore
 from support import Outbox, make_tools
+
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")  # Qt without a display (desktop tests)
 
 TOKEN = "test-token-0123456789abcdef"
 
@@ -141,3 +144,12 @@ async def gclient(gcontainer: Container) -> AsyncIterator[httpx.AsyncClient]:
         headers={"Authorization": f"Bearer {TOKEN}"},
     ) as c:
         yield c
+
+
+@pytest.fixture
+def home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """An isolated per-user data folder for the desktop app."""
+    h = tmp_path / "home"
+    h.mkdir()
+    monkeypatch.setenv("GSOI_DESKTOP_HOME", str(h))
+    return h

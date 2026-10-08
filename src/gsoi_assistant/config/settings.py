@@ -42,6 +42,7 @@ class Settings(BaseSettings):
     env: Literal["dev", "test", "prod"] = "dev"
     log_level: str = "INFO"
     log_json: bool | None = None  # default: JSON unless env == "dev"
+    log_file: Path | None = None  # write logs here instead of stdout (desktop app)
 
     database_url: SecretStr
     api_token: SecretStr = Field(description="Bearer token required by every /v1 endpoint.")

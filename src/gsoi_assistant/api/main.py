@@ -54,7 +54,9 @@ _ERROR_MAP: list[tuple[type[Exception], int, str]] = [
 
 def create_app(settings: Settings | None = None, container: Container | None = None) -> FastAPI:
     settings = settings or get_settings()
-    configure_logging(level=settings.log_level, json_logs=settings.json_logs)
+    configure_logging(
+        level=settings.log_level, json_logs=settings.json_logs, log_file=settings.log_file
+    )
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:

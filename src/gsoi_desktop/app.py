@@ -1,0 +1,209 @@
+"""Entry point of the GSOI desktop app."""
+
+from __future__ import annotations
+
+import argparse
+import os
+import sys
+import tempfile
+import traceback
+from pathlib import Path
+
+import httpx
+
+from gsoi_desktop import __version__
+from gsoi_desktop.config import DesktopConfig, load_config, save_config, secret_name
+from gsoi_desktop.paths import app_home
+from gsoi_desktop.runtime import BackendRuntime
+from gsoi_desktop.secrets_store import FileSecrets, choose_secret_store
+
+
+def selftest(home: Path | None = None) -> int:
+    """Headless check used by the build: the bundle can start its backend and serve requests."""
+    return _record(home, _selftest(home))
+
+
+def _record(home: Path | None, code: int) -> int:
+    env_home = os.environ.get("GSOI_DESKTOP_HOME")
+    target = home or (Path(env_home) if env_home else None)
+    if target is not None:  # a windowed exe has no console: leave the verdict in a file
+        (target / "selftest.txt").write_text("OK\n" if code == 0 else "FAILED\n", encoding="utf-8")
+    return code
+
+
+def _selftest(home: Path | None) -> int:
+    env_home = os.environ.get("GSOI_DESKTOP_HOME")
+    work = home or (Path(env_home) if env_home else Path(tempfile.mkdtemp(prefix="gsoi-selftest-")))
+    work.mkdir(parents=True, exist_ok=True)
+    runtime = BackendRuntime(work, DesktopConfig(), FileSecrets(work / "secrets.json"))
+    try:
+        runtime.start()
+        auth = {"Authorization": f"Bearer {runtime.token}"}
+        checks = {
+            "health": httpx.get(f"{runtime.base_url}/health", timeout=10),
+            "ready": httpx.get(f"{runtime.base_url}/ready", timeout=10),
+            "setup page": httpx.get(f"{runtime.base_url}/setup", timeout=10),
+            "authenticated api": httpx.get(
+                f"{runtime.base_url}/v1/connections", headers=auth, timeout=10
+            ),
+        }
+        failed = [name for name, r in checks.items() if r.status_code != 200]
+        if failed:
+            print(f"SELFTEST FAILED: {', '.join(failed)}")
+            return 1
+        unauthenticated = httpx.get(f"{runtime.base_url}/v1/connections", timeout=10).status_code
+        if unauthenticated != 401:
+            print(f"SELFTEST FAILED: API accepted a request without the token ({unauthenticated})")
+            return 1
+        print(f"SELFTEST OK (GSOI {__version__})")
+        return 0
+    except Exception:
+        traceback.print_exc()
+        print("SELFTEST FAILED")
+        return 1
+    finally:
+        runtime.stop()
+
+
+def run_gui(minimized: bool, quit_after_ms: int | None = None) -> int:
+    from PySide6.QtCore import QLockFile
+    from PySide6.QtWidgets import QApplication, QMessageBox, QWidget
+
+    from gsoi_desktop.autostart import Autostart
+    from gsoi_desktop.client import ApiClient
+    from gsoi_desktop.controller import AssistantController
+    from gsoi_desktop.ui.async_call import AsyncRunner
+    from gsoi_desktop.ui.icon import make_icon
+    from gsoi_desktop.ui.main_window import MainWindow
+    from gsoi_desktop.ui.services_dialog import ServicesDialog
+    from gsoi_desktop.ui.settings_dialog import SettingsDialog
+    from gsoi_desktop.ui.speech import Speaker
+    from gsoi_desktop.ui.tray import Tray
+
+    app = QApplication(sys.argv[:1])
+    app.setApplicationName("GSOI")
+    app.setOrganizationName("GSOI")
+    app.setQuitOnLastWindowClosed(False)  # lives in the tray
+    icon = make_icon()
+    app.setWindowIcon(icon)
+
+    home = app_home()
+    lock = QLockFile(str(home / "gsoi.lock"))
+    lock.setStaleLockTime(0)
+    if not lock.tryLock(100):
+        if not minimized:
+            QMessageBox.information(
+                QWidget(), "GSOI", "GSOI è già in esecuzione (cerca l'icona vicino all'orologio)."
+            )
+        return 0
+
+    store = choose_secret_store(home)
+    config = load_config(home)
+    runtime = BackendRuntime(home, config, store)
+    try:
+        runtime.start()
+    except Exception as exc:
+        QMessageBox.critical(
+            QWidget(),
+            "GSOI",
+            f"Non riesco ad avviare il servizio interno.\n\n{exc}\n\nLog: {home / 'logs'}",
+        )
+        return 1
+
+    client = ApiClient(runtime.base_url, runtime.token)
+    controller = AssistantController(client)
+    runner = AsyncRunner()
+    speaker = Speaker()
+    autostart = Autostart()
+    state = {"config": config}
+
+    def configured() -> bool:
+        return state["config"].is_configured(runtime.model_key_present)
+
+    window = MainWindow(
+        controller,
+        runner,
+        speaker,
+        is_configured=configured,
+        read_aloud=lambda: state["config"].read_aloud,
+    )
+
+    def show_settings() -> None:
+        dialog = SettingsDialog(
+            state["config"],
+            has_key=runtime.model_key_present,
+            autostart_supported=autostart.supported,
+            parent=window,
+        )
+        if dialog.exec() != SettingsDialog.DialogCode.Accepted or dialog.result_value is None:
+            return
+        result = dialog.result_value
+        if result.new_api_key:
+            store.set(secret_name(result.config.provider), result.new_api_key)
+        save_config(home, result.config)
+        autostart.set_enabled(result.config.autostart)
+        state["config"] = result.config
+        window.status.setText("Applico le impostazioni...")
+        runner.run(lambda: runtime.restart(result.config), applied, failed)
+
+    def applied(_: object) -> None:
+        window.status.setText("")
+        client_new = ApiClient(runtime.base_url, runtime.token)
+        controller._api = client_new  # new port after the restart
+        window.refresh_banner()
+
+    def failed(error: Exception) -> None:
+        window.status.setText("")
+        window.add("error", f"Impossibile applicare le impostazioni: {error}")
+
+    def show_services() -> None:
+        ServicesDialog(controller, runner, window).exec()
+
+    window.open_settings.connect(show_settings)
+    window.open_services.connect(show_services)
+
+    def quit_app() -> None:
+        speaker.close()
+        tray.hide()
+        app.quit()
+
+    tray = Tray(icon, window, on_briefing=window.request_briefing, on_quit=quit_app)
+    window.hide_on_close = tray.available  # without a tray, closing really quits
+    app.aboutToQuit.connect(runtime.stop)
+
+    if config.autostart and autostart.supported and not autostart.is_enabled():
+        autostart.set_enabled(True)  # keep the registry entry pointing at this executable
+
+    if not (minimized and tray.available and configured()):
+        window.show()
+    if not configured() and quit_after_ms is None:  # a smoke test must not wait on a dialog
+        show_settings()
+    if quit_after_ms is not None:  # smoke test: start everything, then leave
+        from PySide6.QtCore import QTimer
+
+        QTimer.singleShot(quit_after_ms, app.quit)
+    code = app.exec()
+    lock.unlock()
+    return int(code)
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(prog="gsoi", description="GSOI Personal Assistant")
+    parser.add_argument(
+        "--selftest", action="store_true", help="start the backend headless and check it"
+    )
+    parser.add_argument("--minimized", action="store_true", help="start in the tray")
+    parser.add_argument(
+        "--gui-selftest", action="store_true", help="open the UI briefly, then exit"
+    )
+    args = parser.parse_args(argv)
+    if args.selftest:
+        return selftest()
+    if args.gui_selftest:
+        code = run_gui(minimized=False, quit_after_ms=1500)
+        return _record(None, code)
+    return run_gui(args.minimized)
+
+
+if __name__ == "__main__":  # pragma: no cover
+    raise SystemExit(main())

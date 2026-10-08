@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from datetime import timedelta
 from zoneinfo import ZoneInfo
 
+from pydantic import SecretStr
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from gsoi_assistant.agent.loop import AgentLoop
@@ -72,10 +73,18 @@ class Container:
         await self.engine.dispose()
 
 
+class _Auto:
+    """Sentinel: look for the Google application bundled with the release."""
+
+
+AUTO = _Auto()
+
+
 def build_container(
     settings: Settings,
     *,
     secrets: SecretStore | None = None,
+    bundled_google_app: tuple[str, SecretStr] | _Auto | None = AUTO,
     providers: dict[str, LLMProvider] | None = None,
     extra_tools: list[AnyTool] | None = None,
 ) -> Container:
@@ -107,7 +116,7 @@ def build_container(
         redirect_uri=settings.google_redirect_uri,
         env_client_id=settings.google_client_id,
         env_client_secret=env_secret,
-        bundled=load_bundled_app(),
+        bundled=load_bundled_app() if isinstance(bundled_google_app, _Auto) else bundled_google_app,
     )
     # The Google tools are always registered; they report "not set up" until /setup is completed.
     google_api = GoogleApi(hub)
