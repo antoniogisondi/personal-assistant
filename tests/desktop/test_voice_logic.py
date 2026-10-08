@@ -594,3 +594,59 @@ def test_whisper_can_be_forced_onto_the_cpu(fake_whisper, tmp_path) -> None:  # 
 
     t = WhisperTranscriber(tmp_path, device="cpu")
     assert t.device == "cpu" and fake_whisper.created == [("cpu", "int8")]
+
+
+def test_switching_voice_off_releases_the_recognition_model(fake_whisper, tmp_path) -> None:  # type: ignore[no-untyped-def]
+    from gsoi_desktop.voice.stt import WhisperTranscriber
+
+    t = WhisperTranscriber(tmp_path)
+    assert t.transcribe(speech(1.0)[0]) == "apri Chrome"
+    t.close()
+    assert t._model is None and t.transcribe(speech(1.0)[0]) == ""
+
+
+def test_the_service_frees_the_model_when_voice_is_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from pathlib import Path
+
+    from gsoi_desktop.config import DesktopConfig
+    from gsoi_desktop.voice.service import VoiceService
+
+    closed: list[bool] = []
+
+    class Stt:
+        def transcribe(self, samples: np.ndarray) -> str:
+            return ""
+
+        def close(self) -> None:
+            closed.append(True)
+
+    class Source:
+        def start(self, on_audio) -> None:  # type: ignore[no-untyped-def]
+            pass
+
+        def stop(self) -> None:
+            pass
+
+    service = VoiceService(
+        Path("."),
+        types.SimpleNamespace(
+            state=lambda s: None,
+            level=lambda x: None,
+            wake=lambda: None,
+            command=lambda t: None,
+            error=lambda m: None,
+        ),  # type: ignore[arg-type]
+        source_factory=lambda mic: Source(),
+        wake_factory=lambda th: FakeWake(),
+        stt_factory=lambda d: Stt(),
+    )
+    import gsoi_desktop.voice.service as svc
+
+    monkeypatch.setattr(svc, "ensure_wake_models", lambda: None)
+    monkeypatch.setattr(svc, "stt_model_present", lambda base, size: True)
+    service.enable(DesktopConfig())
+    assert closed == []
+    service.disable()
+    assert closed == [True]

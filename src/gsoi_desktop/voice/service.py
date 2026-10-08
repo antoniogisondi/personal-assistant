@@ -43,6 +43,7 @@ class VoiceService:
         self._stt_factory = stt_factory
         self._pipeline: VoicePipeline | None = None
         self._runner: VoiceRunner | None = None
+        self._stt: Transcriber | None = None
         self._vocabulary: list[str] = []
 
     def set_vocabulary(self, names: list[str]) -> None:
@@ -85,6 +86,7 @@ class VoiceService:
             )
         report("Carico il riconoscimento vocale...", 1.0)
         stt = self._stt_factory(model_dir(self._models_dir, config.voice_model))
+        self._stt = stt
         if self._vocabulary and hasattr(stt, "set_vocabulary"):
             stt.set_vocabulary(self._vocabulary)
         if hasattr(stt, "warm_up"):
@@ -116,6 +118,9 @@ class VoiceService:
         if runner is not None:
             runner.stop()
         self._pipeline = None
+        stt, self._stt = self._stt, None
+        if stt is not None and hasattr(stt, "close"):
+            stt.close()  # frees the graphics memory the recognition model held
 
     def resume(self) -> None:
         if self._pipeline is not None:

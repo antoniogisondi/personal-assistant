@@ -20,7 +20,8 @@ log = structlog.get_logger(__name__)
 
 MODEL_SIZES = {"base": 145, "small": 484, "turbo": 1620}  # approximate download size in MB
 WHISPER_NAMES = {"base": "base", "small": "small", "turbo": "large-v3-turbo"}
-PROMPT = "Trascrizione fedele in italiano di un comando detto a un assistente."  # neutral: no words to copy
+# Neutral on purpose: example commands in the prompt make Whisper copy them.
+PROMPT = "Trascrizione fedele in italiano di un comando detto a un assistente."
 
 
 class Transcriber(Protocol):
@@ -154,6 +155,14 @@ class WhisperTranscriber:
         except Exception as exc:
             raise VoiceUnavailableError(f"Modello vocale non disponibile: {exc}") from exc
 
+    def close(self) -> None:
+        """Release the model (and its graphics memory) as soon as voice control is switched off."""
+        with self._lock:
+            self._model = None
+        import gc
+
+        gc.collect()
+
     def set_vocabulary(self, app_names: list[str]) -> None:
         self._prompt = build_prompt(app_names)
 
@@ -165,6 +174,8 @@ class WhisperTranscriber:
         started = time.monotonic()
         audio = normalize_gain(samples).astype(np.float32) / 32768.0
         with self._lock:
+            if self._model is None:  # switched off while this recording was waiting
+                return ""
             segments, _ = self._model.transcribe(
                 audio,
                 language=self._language,
