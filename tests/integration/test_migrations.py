@@ -37,3 +37,15 @@ def test_upgrade_matches_models_and_downgrades(alembic_cfg: tuple[Config, str]) 
     command.downgrade(cfg, "base")
     with engine.connect() as conn:
         assert "runs" not in inspect(conn).get_table_names()
+
+
+def test_database_url_falls_back_to_dotenv(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("GSOI_DATABASE_URL", raising=False)
+    db = tmp_path / "from_dotenv.db"
+    (tmp_path / ".env").write_text(f"GSOI_DATABASE_URL=sqlite+aiosqlite:///{db}\n")
+    monkeypatch.chdir(tmp_path)
+    cfg = Config(str(ROOT / "alembic.ini"))
+    cfg.set_main_option("script_location", str(ROOT / "migrations"))
+    command.upgrade(cfg, "head")
+    with create_engine(f"sqlite:///{db}").connect() as conn:
+        assert "runs" in inspect(conn).get_table_names()

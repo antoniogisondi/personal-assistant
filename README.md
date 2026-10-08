@@ -32,6 +32,30 @@ curl -s localhost:8000/v1/chat -H "Authorization: Bearer $GSOI_API_TOKEN" \
 Per usare solo il modello locale: `"profile": "private"`. I dati marcati `"data_class": 2`
 (SECRET) vengono accettati solo da profili locali; verso il cloud la richiesta è bloccata.
 
+## Avvio su Windows (PowerShell, senza `make`)
+
+Servono Python 3.11+ e [uv](https://docs.astral.sh/uv/) (`winget install astral-sh.uv`).
+Lancia tutto dalla cartella del progetto (il `.env` viene letto da lì).
+
+```powershell
+copy .env.example .env          # poi compila il .env (vedi sopra)
+uv venv
+uv pip install -e ".[dev]"
+.venv\Scripts\alembic upgrade head
+.venv\Scripts\uvicorn gsoi_assistant.api.main:create_app --factory --reload
+```
+
+**Database senza Docker (solo per provare):** nel `.env` usa
+`GSOI_DATABASE_URL=sqlite+aiosqlite:///./gsoi.db`. Per la memoria vettoriale (fase 6) servirà
+PostgreSQL (Docker Desktop: `docker compose up db -d`).
+
+Prova la chat (documentazione interattiva su http://127.0.0.1:8000/docs):
+
+```powershell
+$h = @{ Authorization = "Bearer <il tuo GSOI_API_TOKEN>" }
+Invoke-RestMethod -Method Post http://127.0.0.1:8000/v1/chat -Headers $h `  -ContentType "application/json" -Body '{"message":"Ciao, chi sei?"}'
+```
+
 ## Qualità
 
 `make check` esegue ruff, mypy (strict), import-linter (architettura a livelli) e pytest.

@@ -4,6 +4,7 @@ import asyncio
 import os
 
 from alembic import context
+from dotenv import dotenv_values
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import create_async_engine
 
@@ -15,9 +16,14 @@ target_metadata = Base.metadata
 
 
 def _url() -> str:
-    url = config.get_main_option("sqlalchemy.url") or os.environ.get("GSOI_DATABASE_URL")
+    # Same sources as the app: real environment first, then `.env` in the working directory.
+    url = (
+        config.get_main_option("sqlalchemy.url")
+        or os.environ.get("GSOI_DATABASE_URL")
+        or dotenv_values(".env").get("GSOI_DATABASE_URL")
+    )
     if not url:
-        raise RuntimeError("GSOI_DATABASE_URL is not set")
+        raise RuntimeError("GSOI_DATABASE_URL is not set (environment or .env)")
     return url
 
 
