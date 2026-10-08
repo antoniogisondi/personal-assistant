@@ -94,6 +94,9 @@ def _clean(text: str) -> str:
     return _FILLERS.sub(" ", normalize(text)).strip()
 
 
+_COMPOUND = re.compile(r"\b(e|poi|dopo|digita|scrivi|cerca|vai|anche|quindi|inoltre)\b")
+
+
 def match(text: str, timezone: str = "Europe/Rome") -> FastPlan | None:
     t = " ".join(_clean(text).split())
     if not t or len(t.split()) > 6:
@@ -107,6 +110,8 @@ def match(text: str, timezone: str = "Europe/Rome") -> FastPlan | None:
         return FastPlan("time.now", {}, _say_date)
     opened = _OPEN.match(t)
     if opened:
+        if _COMPOUND.search(t):
+            return None  # several actions in one sentence: the agent plans them
         what = opened.group("what").strip()
         folder = _FOLDER.match(what)
         if folder:

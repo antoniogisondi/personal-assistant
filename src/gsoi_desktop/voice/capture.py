@@ -38,7 +38,9 @@ class CommandCapture:
         *,
         start_timeout: float = 6.0,
         endpoint: float = 0.7,
-        max_seconds: float = 15.0,
+        long_endpoint: float = 1.3,
+        long_after: float = 2.5,
+        max_seconds: float = 25.0,
         min_seconds: float = 0.3,
         preroll_frames: int = 3,
         ratio: float = 3.0,
@@ -49,6 +51,8 @@ class CommandCapture:
     ) -> None:
         self._start_timeout = int(start_timeout / FRAME_SECONDS)
         self._endpoint = max(1, int(endpoint / FRAME_SECONDS))
+        self._long_endpoint = max(self._endpoint, int(long_endpoint / FRAME_SECONDS))
+        self._long_after = int(long_after / FRAME_SECONDS)  # speech this long: a longer pause
         self._max = int(max_seconds / FRAME_SECONDS)
         self._min = max(1, int(min_seconds / FRAME_SECONDS))
         self._ratio, self._minimum, self._start_frames = ratio, minimum, start_frames
@@ -94,7 +98,9 @@ class CommandCapture:
 
         self._frames.append(frame)
         self._quiet = self._quiet + 1 if level < threshold * 0.6 else 0
-        if self._quiet >= self._endpoint or len(self._frames) >= self._max:
+        spoken = len(self._frames) - self._quiet
+        wait = self._long_endpoint if spoken >= self._long_after else self._endpoint
+        if self._quiet >= wait or len(self._frames) >= self._max:
             speech_frames = len(self._frames) - self._quiet
             if speech_frames < self._min:
                 return CaptureResult(CaptureStatus.TOO_SHORT)

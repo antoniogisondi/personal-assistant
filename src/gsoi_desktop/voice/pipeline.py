@@ -50,6 +50,7 @@ class VoicePipeline:
         self._threshold = wake_threshold
         self._cooldown_frames = cooldown_frames
         self._cooldown = 0
+        self._last_logged = 0.0
         self._ambient = 0.0  # slow estimate of the room's background level
         self._state = VoiceState.OFF
         self._capture: CommandCapture | None = None
@@ -130,9 +131,20 @@ class VoicePipeline:
         if self._cooldown > 0:
             self._cooldown -= 1
             return
-        if self._wake.predict(frame) >= self._threshold:
+        score = self._wake.predict(frame)
+        if score >= self._threshold * 0.6:
+            self._log_score(score)
+        if score >= self._threshold:
+            log.info("wake_detected", score=round(score, 2), threshold=self._threshold)
             self._events.wake()
             self._begin_capture()
+
+    def _log_score(self, score: float) -> None:
+        """Near misses go to the log (at most one every 2 s) so a missed wake word can be tuned."""
+        now = time.monotonic()
+        if score < self._threshold and now - self._last_logged > 2.0:
+            self._last_logged = now
+            log.info("wake_near_miss", score=round(score, 2), threshold=self._threshold)
 
     def _begin_capture(self) -> None:
         self._capture = CommandCapture(floor=self._ambient)

@@ -37,7 +37,7 @@ class AppEntry:
 class PcBackend(Protocol):
     def apps(self) -> list[AppEntry]: ...
     def launch(self, app: AppEntry) -> None: ...
-    def open_url(self, url: str) -> None: ...
+    def open_url(self, url: str, browser: str | None = None) -> None: ...
     def open_folder(self, which: str) -> None: ...
     def media(self, action: str) -> None: ...
 
@@ -72,6 +72,32 @@ def scan_shortcuts(roots: list[Path]) -> list[AppEntry]:
             if name and name.lower() not in seen and "uninstall" not in name.lower():
                 seen[name.lower()] = AppEntry(name, str(lnk))
     return sorted(seen.values(), key=lambda a: a.name.lower())
+
+
+BROWSERS = ("chrome", "edge", "firefox", "brave", "opera")
+_BROWSER_EXE = {
+    "chrome": "chrome.exe", "edge": "msedge.exe", "firefox": "firefox.exe",
+    "brave": "brave.exe", "opera": "opera.exe",
+}  # fmt: skip
+
+
+def _browser_path(name: str) -> str | None:
+    """Where a browser is installed (Windows 'App Paths' registry), or None."""
+    exe = _BROWSER_EXE.get(name)
+    if exe is None or sys.platform != "win32":
+        return None
+    import winreg
+
+    key = rf"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\{exe}"
+    for hive in (winreg.HKEY_LOCAL_MACHINE, winreg.HKEY_CURRENT_USER):
+        try:
+            with winreg.OpenKey(hive, key) as handle:
+                path = str(winreg.QueryValue(handle, None))
+        except OSError:
+            continue
+        if path and Path(path).is_file():
+            return path
+    return None
 
 
 class WindowsBackend:
@@ -110,8 +136,12 @@ class WindowsBackend:
         else:
             os.startfile(app.target)  # type: ignore[attr-defined]  # noqa: S606  # nosec B606
 
-    def open_url(self, url: str) -> None:
-        webbrowser.open(url, new=2)
+    def open_url(self, url: str, browser: str | None = None) -> None:
+        exe = _browser_path(browser) if browser else None
+        if exe is None:
+            webbrowser.open(url, new=2)  # the default browser
+        else:
+            subprocess.Popen([exe, url])  # noqa: S603  # nosec B603  # url is http(s), no shell
 
     def open_folder(self, which: str) -> None:
         if which not in FOLDERS:

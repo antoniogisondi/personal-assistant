@@ -60,6 +60,9 @@ def test_clear_commands_are_recognised(spoken: str, tool: str, args: dict) -> No
         "apri",
         "mi puoi aprire Spotify, quello della musica, per favore?",
         "alza",  # ambiguous
+        "apri chrome e digita instagram",  # two actions: the agent plans them
+        "apri chrome e edge",
+        "apri spotify poi alza il volume",
     ],
 )
 def test_everything_else_goes_to_the_model(text: str) -> None:

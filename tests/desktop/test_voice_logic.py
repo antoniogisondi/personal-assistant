@@ -496,3 +496,15 @@ def test_the_command_ends_a_little_sooner_after_a_pause() -> None:
     status, samples = run_capture(quiet(0.5) + speech(1.0) + quiet(2.0), floor=40)
     assert status is CaptureStatus.DONE and samples is not None
     assert len(samples) / 16000 < 1.0 + 0.9  # speech plus roughly the 0.7 s closing pause
+
+
+def test_a_long_command_survives_a_thinking_pause_but_a_short_one_does_not_wait() -> None:
+    # 3 s of speech, 1 s pause, 2 s more speech: still one command
+    status, samples = run_capture(
+        quiet(0.5) + speech(3.0) + quiet(1.0) + speech(2.0) + quiet(2.0), floor=40
+    )
+    assert status is CaptureStatus.DONE and samples is not None
+    assert len(samples) / 16000 > 5.5
+    # 1 s of speech then a 1 s pause: already over (short commands answer quickly)
+    status, samples = run_capture(quiet(0.5) + speech(1.0) + quiet(1.0) + speech(2.0), floor=40)
+    assert samples is not None and len(samples) / 16000 < 2.5

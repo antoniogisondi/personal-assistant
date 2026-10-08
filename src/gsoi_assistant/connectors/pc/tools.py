@@ -37,6 +37,10 @@ class OpenUrlIn(BaseModel):
     url: str = Field(
         max_length=2000, description="An http(s) address to open in the default browser."
     )
+    browser: Literal["chrome", "edge", "firefox", "brave", "opera"] | None = Field(
+        default=None,
+        description="Open it in this browser instead of the default one (e.g. 'Chrome').",
+    )
 
 
 class OpenedOut(BaseModel):
@@ -83,7 +87,7 @@ def make_pc_tools(backend: PcBackend) -> list[AnyTool]:
             url = check_url(args.url)
         except UnsafeUrlError as exc:
             raise ToolError(f"Cannot open that address: {exc}.") from exc
-        backend.open_url(url)
+        backend.open_url(url, args.browser)
         return OpenedOut(opened=url)
 
     async def open_folder(args: OpenFolderIn, ctx: ToolContext) -> OpenedOut:
@@ -117,12 +121,17 @@ def make_pc_tools(backend: PcBackend) -> list[AnyTool]:
         ),
         ToolSpec(
             name="pc.open_url",
-            description="Open an http(s) web address in the user's default browser.",
+            description=(
+                "Open an http(s) web address in the default browser, or in a chosen browser "
+                "(chrome, edge, firefox...). Use this for 'open Chrome and go to Instagram': "
+                "browser='chrome', url='https://www.instagram.com'. For a web search use "
+                "https://www.google.com/search?q=<terms>."
+            ),
             input_model=OpenUrlIn,
             handler=open_url,
             risk=Risk.WRITE_LOCAL,
             output_data_class=DataClass.PUBLIC,
-            summarize=lambda a: f"Open {a.url} in the browser",
+            summarize=lambda a: f"Open {a.url} in {a.browser or 'the browser'}",
         ),
         ToolSpec(
             name="pc.open_folder",

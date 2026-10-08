@@ -20,6 +20,7 @@ class FakePc:
     def __init__(self) -> None:
         self.launched: list[str] = []
         self.urls: list[str] = []
+        self.browsers: list[str | None] = []
         self.folders: list[str] = []
         self.keys: list[str] = []
         names = ("Google Chrome", "Microsoft Edge", "Microsoft Word", "Spotify", "Calcolatrice")
@@ -31,8 +32,9 @@ class FakePc:
     def launch(self, app: AppEntry) -> None:
         self.launched.append(app.name)
 
-    def open_url(self, url: str) -> None:
+    def open_url(self, url: str, browser: str | None = None) -> None:
         self.urls.append(url)
+        self.browsers.append(browser)
 
     def open_folder(self, which: str) -> None:
         self.folders.append(which)
@@ -158,3 +160,13 @@ async def test_voice_command_end_to_end(pc_container, cloud: ScriptedProvider) -
         res.status == "done" and res.content == "Ho aperto Spotify." and pc.launched == ["Spotify"]
     )
     assert any(t.name == "pc__open_app" for t in cloud.requests[0].tools)
+
+
+async def test_a_url_can_be_opened_in_a_chosen_browser(pc_container) -> None:  # type: ignore[no-untyped-def]
+    c, pc = pc_container
+    r = await run(c, "pc.open_url", {"url": "https://www.instagram.com", "browser": "chrome"})
+    assert (
+        r.status == "ok" and pc.urls == ["https://www.instagram.com"] and pc.browsers == ["chrome"]
+    )
+    bad = await run(c, "pc.open_url", {"url": "https://x.it", "browser": "netscape"})
+    assert bad.status == "error"
