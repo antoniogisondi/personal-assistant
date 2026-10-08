@@ -44,6 +44,7 @@ def make_settings(db_path: Path, **overrides: object) -> Settings:
         },
         "default_profile": "reasoning",
         "llm_backoff_initial_s": 0.0,
+        "data_dir": db_path.parent / "data",
         "log_level": "WARNING",
     }
     base.update(overrides)

@@ -191,3 +191,14 @@ class OAuthState(Base):
     provider: Mapped[str] = mapped_column(String(32))
     code_verifier: Mapped[str] = mapped_column(String(128))
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class ConnectorConfig(Base):
+    """Application-level settings of a connector (e.g. the Google OAuth app), secret encrypted."""
+
+    __tablename__ = "connector_configs"
+
+    provider: Mapped[str] = mapped_column(String(32), primary_key=True)
+    client_id: Mapped[str] = mapped_column(String(256))
+    client_secret_enc: Mapped[str] = mapped_column(Text)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)

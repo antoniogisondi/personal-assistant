@@ -20,7 +20,7 @@ da una policy di sicurezza.
 
 - **Fase 4-5:** Gmail (cerca, leggi, bozze, invio con approvazione) e Google Calendar (eventi,
   slot liberi calcolati, creazione con approvazione), OAuth con PKCE e token cifrati, riepilogo
-  della giornata (`POST /v1/briefing`, in stile parlato). Guida: [docs/google-setup.md](docs/google-setup.md).
+  della giornata (`POST /v1/briefing`, in stile parlato). I servizi si collegano da **/setup** (nessun file da modificare). Guida: [docs/google-setup.md](docs/google-setup.md).
 
 API principali: `POST /v1/chat`, `POST /v1/chat/stream`, `GET /v1/approvals`,
 `POST /v1/approvals/{id}/decision`, `POST /v1/briefing`, `GET /v1/connections`,

@@ -92,9 +92,19 @@ class HealthBody(BaseModel):
 
 class ConnectionOut(BaseModel):
     provider: str
-    connected: bool
+    configured: bool = Field(description="The application credentials (Client ID/Secret) are set.")
+    config_source: str | None = Field(
+        default=None, description="'app' (saved from /setup) or 'env'."
+    )
+    connected: bool = Field(description="The user has granted access.")
     status: str
     scopes: list[str]
+    redirect_uri: str = Field(description="Authorized redirect URI to register in Google Cloud.")
+
+
+class GoogleConfigBody(BaseModel):
+    client_id: str = Field(min_length=10, max_length=256)
+    client_secret: str = Field(min_length=8, max_length=256)
 
 
 class ConnectStartOut(BaseModel):

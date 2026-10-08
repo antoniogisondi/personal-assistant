@@ -1,50 +1,57 @@
 # Collegare Gmail e Google Calendar
 
-Serve un progetto Google Cloud tuo (gratuito) con credenziali OAuth. L'assistente non ha accesso
-ai tuoi dati finché non completi il passo 6, e puoi revocarlo in qualsiasi momento.
+Non serve modificare nessun file di configurazione. Tutto si fa dalla pagina
+**http://127.0.0.1:8000/setup**.
 
-## 1. Crea il progetto e abilita le API
-1. Vai su <https://console.cloud.google.com/> e crea un progetto (es. "GSOI Assistant").
+Ci sono due ruoli diversi (oggi li ricopri entrambi tu):
+
+| Ruolo | Cosa fa | Quante volte |
+|---|---|---|
+| **Chi mette a disposizione l'assistente** (sviluppatore / amministratore) | Registra l'applicazione presso Google e incolla Client ID e Client Secret in `/setup` | Una volta sola |
+| **Chi lo usa** | Preme **Collega Google** e sceglie cosa consentire | Una volta per account |
+
+La chiave che cifra i token viene creata da sola al primo avvio (file `data/master.key`, non
+committato). Non devi generarla né copiarla.
+
+## A. Registrare l'applicazione Google (una volta sola)
+
+1. <https://console.cloud.google.com/> → crea un progetto (es. "GSOI Assistant").
 2. **API e servizi → Libreria**: abilita **Gmail API** e **Google Calendar API**.
+3. **Schermata consenso OAuth** → tipo **Esterno** → nome app e tua email → aggiungi il tuo
+   indirizzo Gmail come **utente di test**.
+4. **Credenziali → Crea credenziali → ID client OAuth → Applicazione web**.
+   **URI di reindirizzamento autorizzati**: copia quello mostrato in `/setup` (di default
+   `http://127.0.0.1:8000/v1/connections/google/callback`).
+5. Copia **ID client** e **Segreto client**.
 
-## 2. Schermata di consenso OAuth
-1. **API e servizi → Schermata consenso OAuth** (o "Google Auth Platform").
-2. Tipo di utente: **Esterno** (account Gmail personale). Compila nome app e la tua email.
-3. **Utenti di test**: aggiungi il tuo indirizzo Gmail.
-4. Scope: non serve aggiungerli qui a mano, li richiede l'app (sola lettura Gmail, bozze/invio Gmail,
-   lettura e modifica eventi Calendar).
+> Con l'app in stato "Testing" Google fa scadere il collegamento dopo circa 7 giorni e va rifatto
+> (un clic su "Collega Google"). Per evitarlo puoi portare l'app "In produzione" per uso personale:
+> Google mostra l'avviso "app non verificata", che puoi superare perché l'app è tua. Le regole di
+> Google cambiano: verificale nella loro documentazione.
 
-> Con l'app in stato "Testing" Google fa scadere il refresh token dopo circa 7 giorni: dovrai
-> ricollegare l'account ogni settimana. Per evitarlo puoi portare l'app in "In produzione" per uso
-> personale (Google mostrerà l'avviso "app non verificata", che puoi superare perché l'app è tua).
-> Verifica le regole attuali nella documentazione Google, perché cambiano.
+## B. In `/setup`
 
-## 3. Credenziali
-1. **Credenziali → Crea credenziali → ID client OAuth**.
-2. Tipo di applicazione: **Applicazione web**.
-3. **URI di reindirizzamento autorizzati**: `http://127.0.0.1:8000/v1/connections/google/callback`
-   (deve coincidere carattere per carattere con `GSOI_GOOGLE_REDIRECT_URI`).
-4. Copia **ID client** e **Segreto client**.
+1. Inserisci la **chiave di accesso** (`GSOI_API_TOKEN`; resta solo nel tuo browser).
+2. Nella scheda Google incolla **Client ID** e **Client Secret** → **Salva**. (Il segreto viene
+   cifrato nel database e non viene mai mostrato di nuovo.)
+3. Premi **Collega Google**, accetta i permessi nella scheda che si apre. La pagina passa a
+   "collegato" da sola.
 
-## 4. Configura il `.env`
-```
-GSOI_GOOGLE_CLIENT_ID=xxxxxxxx.apps.googleusercontent.com
-GOOGLE_CLIENT_SECRET=il-segreto-client
-GSOI_MASTER_KEY=<chiave>
-```
-Genera `GSOI_MASTER_KEY` con `python scripts/generate_master_key.py` (Windows:
-`.venv\Scripts\python scripts\generate_master_key.py`). Cifra i token salvati: **conservala**; se la
-perdi basta ricollegare Google. Non committare mai il `.env`.
+Per scollegare l'account: **Scollega** (revoca anche l'accesso presso Google).
+**Cambia credenziali** sostituisce l'applicazione Google (gli account collegati con la vecchia
+dovranno essere ricollegati).
 
-Poi: `alembic upgrade head` (migrazione 0003) e riavvia il server.
+## C. Distribuire l'assistente ad altre persone
 
-## 5. Collega l'account
-Da `/docs` (dopo "Authorize"): `POST /v1/connections/google/start` → copia `auth_url`, aprilo nel
-browser, accetta i permessi. Tornerai su una pagina "Google collegato".
-`GET /v1/connections` mostra lo stato; `DELETE /v1/connections/google` revoca e cancella.
+Chi riceve l'assistente non deve toccare nulla di tutto questo se l'amministratore ha già inserito
+le credenziali dell'applicazione: vede solo **Collega Google**. In un'installazione gestita si
+possono impostare le credenziali nell'ambiente del server invece che da `/setup`
+(`GSOI_GOOGLE_CLIENT_ID` e `GOOGLE_CLIENT_SECRET`); in quel caso hanno la precedenza e la pagina
+le mostra come "gestite dal server".
 
-## 6. Provalo
-- `POST /v1/chat`: "Quante email non lette ho oggi?", "Cosa ho in calendario domani?",
-  "Trova un'ora libera giovedì pomeriggio".
-- `POST /v1/briefing`: il riepilogo della giornata, scritto per essere letto ad alta voce.
-- Inviare email e creare eventi richiedono sempre la tua approvazione (`/v1/approvals`).
+## Provalo
+
+- Chat: "Quante email non lette ho oggi?", "Cosa ho in calendario domani?", "Trova un'ora libera
+  giovedì pomeriggio".
+- `POST /v1/briefing` (da `/docs`): il riepilogo della giornata, scritto per essere letto ad alta voce.
+- Inviare email e creare eventi richiedono sempre la tua approvazione.

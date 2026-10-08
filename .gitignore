@@ -12,3 +12,6 @@ dist/
 build/
 *.db
 .coverage
+
+# local state (auto-generated master key, SQLite files)
+data/

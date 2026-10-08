@@ -17,11 +17,13 @@ from gsoi_assistant.connectors.google.api import GoogleApi
 from gsoi_assistant.connectors.google.auth import GoogleAuth
 from gsoi_assistant.connectors.google.calendar import CalendarClient, make_calendar_tools
 from gsoi_assistant.connectors.google.gmail import GmailClient, make_gmail_tools
+from gsoi_assistant.connectors.google.hub import GoogleHub
 from gsoi_assistant.db.base import make_engine, make_session_factory
 from gsoi_assistant.db.repositories import SqlRepository
 from gsoi_assistant.db.stores import (
     ApprovalStore,
     AuditStore,
+    ConnectorConfigStore,
     NoteStore,
     OAuthStore,
     TaskStore,
@@ -33,6 +35,7 @@ from gsoi_assistant.llm.providers.factory import build_provider
 from gsoi_assistant.security.approvals import ApprovalService
 from gsoi_assistant.security.audit import AuditLog
 from gsoi_assistant.security.crypto import TokenCipher
+from gsoi_assistant.security.keystore import resolve_master_key
 from gsoi_assistant.security.policy import PolicyEngine, load_policy_config
 from gsoi_assistant.security.secrets import EnvSecretStore, SecretStore
 from gsoi_assistant.tools.base import Services
@@ -54,16 +57,18 @@ class Container:
     tool_calls: ToolCallStore
     executor: ToolExecutor
     agent: AgentService
-    google: GoogleAuth | None = None
-    google_api: GoogleApi | None = None
+    hub: GoogleHub
+    google_api: GoogleApi
+
+    @property
+    def google(self) -> GoogleAuth | None:
+        return self.hub.auth
 
     async def aclose(self) -> None:
         for provider in self.providers.values():
             await provider.aclose()
-        if self.google_api is not None:
-            await self.google_api.aclose()
-        if self.google is not None:
-            await self.google.aclose()
+        await self.google_api.aclose()
+        await self.hub.aclose()
         await self.engine.dispose()
 
 
@@ -91,22 +96,22 @@ def build_container(
     )
 
     tz = ZoneInfo(settings.timezone)
-    google: GoogleAuth | None = None
-    google_api: GoogleApi | None = None
-    gmail: GmailClient | None = None
-    calendar: CalendarClient | None = None
-    connector_tools: list[AnyTool] = []
-    if settings.google_client_id:
-        google = GoogleAuth(
-            store=OAuthStore(sf),
-            cipher=TokenCipher(secrets.get(settings.master_key_ref).get_secret_value()),
-            client_id=settings.google_client_id,
-            client_secret=secrets.get(settings.google_client_secret_ref),
-            redirect_uri=settings.google_redirect_uri,
-        )
-        google_api = GoogleApi(google)
-        gmail, calendar = GmailClient(google_api), CalendarClient(google_api, tz)
-        connector_tools = [*make_gmail_tools(gmail), *make_calendar_tools(calendar)]
+    cipher = TokenCipher(resolve_master_key(secrets, settings.master_key_ref, settings.data_dir))
+    env_secret = (
+        secrets.get(settings.google_client_secret_ref) if settings.google_client_id else None
+    )
+    hub = GoogleHub(
+        oauth_store=OAuthStore(sf),
+        config_store=ConnectorConfigStore(sf),
+        cipher=cipher,
+        redirect_uri=settings.google_redirect_uri,
+        env_client_id=settings.google_client_id,
+        env_client_secret=env_secret,
+    )
+    # The Google tools are always registered; they report "not set up" until /setup is completed.
+    google_api = GoogleApi(hub)
+    gmail, calendar = GmailClient(google_api), CalendarClient(google_api, tz)
+    connector_tools: list[AnyTool] = [*make_gmail_tools(gmail), *make_calendar_tools(calendar)]
 
     registry = ToolRegistry(
         [
@@ -163,6 +168,6 @@ def build_container(
         tool_calls,
         executor,
         agent,
-        google,
+        hub,
         google_api,
     )

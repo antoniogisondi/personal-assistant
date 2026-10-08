@@ -11,6 +11,7 @@ from fastapi import FastAPI, Request, Response
 from fastapi.responses import JSONResponse, RedirectResponse
 
 from gsoi_assistant import __version__
+from gsoi_assistant.api import setup_page
 from gsoi_assistant.api.container import Container, build_container
 from gsoi_assistant.api.routers import chat, connections, health
 from gsoi_assistant.config.settings import Settings, get_settings
@@ -19,6 +20,7 @@ from gsoi_assistant.core.errors import (
     BudgetExceededError,
     CapabilityError,
     ConflictError,
+    ConnectorNotConnectedError,
     EgressDeniedError,
     NotFoundError,
     ProviderAuthError,
@@ -38,6 +40,7 @@ _ERROR_MAP: list[tuple[type[Exception], int, str]] = [
     (EgressDeniedError, 403, "egress_denied"),
     (NotFoundError, 404, "not_found"),
     (ConflictError, 409, "conflict"),
+    (ConnectorNotConnectedError, 409, "connector_not_ready"),
     (BadRequestError, 400, "bad_request"),
     (BudgetExceededError, 422, "budget_exceeded"),
     (UnknownProfileError, 400, "unknown_profile"),
@@ -56,6 +59,7 @@ def create_app(settings: Settings | None = None, container: Container | None = N
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         app.state.container = container or build_container(settings)
+        await app.state.container.hub.load()
         log.info("startup", version=__version__, env=settings.env, profiles=list(settings.profiles))
         try:
             yield
@@ -95,6 +99,7 @@ def create_app(settings: Settings | None = None, container: Container | None = N
     app.include_router(health.router)
     app.include_router(chat.router)
     app.include_router(connections.router)
+    app.include_router(setup_page.router)
     return app
 
 

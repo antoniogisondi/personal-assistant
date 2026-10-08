@@ -382,3 +382,45 @@ class OAuthStore:
                 )
             )
             return bool(result.rowcount)  # type: ignore[attr-defined]
+
+    async def delete_all_credentials(self, provider: str) -> int:
+        async with self._sf() as s, s.begin():
+            result = await s.execute(
+                delete(models.OAuthCredential).where(models.OAuthCredential.provider == provider)
+            )
+            return int(result.rowcount)  # type: ignore[attr-defined]
+
+
+class ConnectorConfigStore:
+    def __init__(self, sf: SessionFactory) -> None:
+        self._sf = sf
+
+    async def get(self, provider: str) -> models.ConnectorConfig | None:
+        async with self._sf() as s:
+            return await s.get(models.ConnectorConfig, provider)
+
+    async def save(self, provider: str, client_id: str, client_secret_enc: str) -> None:
+        async with self._sf() as s, s.begin():
+            row = await s.get(models.ConnectorConfig, provider)
+            if row is None:
+                s.add(
+                    models.ConnectorConfig(
+                        provider=provider,
+                        client_id=client_id,
+                        client_secret_enc=client_secret_enc,
+                        updated_at=utcnow(),
+                    )
+                )
+            else:
+                row.client_id, row.client_secret_enc, row.updated_at = (
+                    client_id,
+                    client_secret_enc,
+                    utcnow(),
+                )
+
+    async def delete(self, provider: str) -> bool:
+        async with self._sf() as s, s.begin():
+            result = await s.execute(
+                delete(models.ConnectorConfig).where(models.ConnectorConfig.provider == provider)
+            )
+            return bool(result.rowcount)  # type: ignore[attr-defined]

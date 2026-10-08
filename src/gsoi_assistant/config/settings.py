@@ -66,11 +66,17 @@ class Settings(BaseSettings):
 
     user_address: str = "signore"  # how the assistant greets you ("Buongiorno, signore")
 
-    # Google (Gmail + Calendar). Leave google_client_id unset to disable the connectors.
+    # Where local, non-database state lives (auto-generated master key).
+    data_dir: Path = Path("data")
+
+    # Google (Gmail + Calendar). Normally configured from the /setup page and stored encrypted in
+    # the database. Setting these in the environment is optional and takes precedence (for
+    # deployments managed by an operator).
     google_client_id: str | None = None
     google_client_secret_ref: str = "GOOGLE_CLIENT_SECRET"  # noqa: S105  (a name, not a value)
     google_redirect_uri: str = "http://127.0.0.1:8000/v1/connections/google/callback"
-    master_key_ref: str = "GSOI_MASTER_KEY"  # name of the secret holding the token-encryption key
+    # Optional override. If this secret is absent, a key is generated once and kept in data_dir.
+    master_key_ref: str = "GSOI_MASTER_KEY"
 
     history_max_messages: int = 40
     llm_max_attempts: int = 3

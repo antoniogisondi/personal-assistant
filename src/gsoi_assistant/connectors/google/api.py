@@ -4,7 +4,8 @@ from typing import Any
 
 import httpx
 
-from gsoi_assistant.connectors.google.auth import NOT_CONNECTED, GoogleAuth
+from gsoi_assistant.connectors.google.auth import NOT_CONNECTED
+from gsoi_assistant.connectors.google.hub import GoogleHub
 from gsoi_assistant.core.errors import ConnectorNotConnectedError, ToolError
 
 
@@ -12,15 +13,15 @@ class GoogleApi:
     """Authenticated JSON calls to Google APIs. Errors become user-presentable ToolErrors with
     messages we author; raw upstream bodies are never forwarded to the model."""
 
-    def __init__(self, auth: GoogleAuth, client: httpx.AsyncClient | None = None) -> None:
-        self._auth = auth
+    def __init__(self, hub: GoogleHub, client: httpx.AsyncClient | None = None) -> None:
+        self._hub = hub
         self._client = client or httpx.AsyncClient(timeout=20.0)
 
     async def aclose(self) -> None:
         await self._client.aclose()
 
     async def require_scopes(self, user_id: str, scopes: tuple[str, ...]) -> None:
-        granted = await self._auth.granted_scopes(user_id)
+        granted = await self._hub.require().granted_scopes(user_id)
         if not granted:
             raise ConnectorNotConnectedError(NOT_CONNECTED)
         missing = [s.rsplit("/", 1)[-1] for s in scopes if s not in granted]
@@ -43,7 +44,7 @@ class GoogleApi:
         if scopes:
             await self.require_scopes(user_id, scopes)
         for attempt in (1, 2):
-            token = await self._auth.access_token(user_id, force_refresh=attempt == 2)
+            token = await self._hub.require().access_token(user_id, force_refresh=attempt == 2)
             try:
                 resp = await self._client.request(
                     method,

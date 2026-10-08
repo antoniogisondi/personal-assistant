@@ -228,15 +228,16 @@ async def test_connection_endpoints_require_the_api_token(gclient: httpx.AsyncCl
 
 async def test_google_disabled_by_default(client: httpx.AsyncClient) -> None:
     assert (await client.get("/v1/connections")).json()[0]["status"] == "not_configured"
-    assert (await client.post("/v1/connections/google/start")).status_code == 503
+    started = await client.post("/v1/connections/google/start")
+    assert started.status_code == 409 and "/setup" in started.json()["error"]["message"]
 
 
-async def test_missing_master_key_fails_at_startup_with_a_clear_name(
+async def test_env_client_id_without_its_secret_fails_at_startup_with_a_clear_name(  # type: ignore[no-untyped-def]
     tmp_path, cloud, local
-) -> None:  # type: ignore[no-untyped-def]
+) -> None:
     from conftest import make_settings
 
     s = make_settings(tmp_path / "x.db", google_client_id="cid")
-    secrets = EnvSecretStore({"GOOGLE_CLIENT_SECRET": "x"}, dotenv_path=None)
-    with pytest.raises(SecretNotFoundError, match="GSOI_MASTER_KEY"):
+    secrets = EnvSecretStore({}, dotenv_path=None)
+    with pytest.raises(SecretNotFoundError, match="GOOGLE_CLIENT_SECRET"):
         build_container(s, secrets=secrets, providers={"reasoning": cloud, "private": local})
