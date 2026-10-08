@@ -130,3 +130,17 @@ girano sul PC (nessun servizio cloud). Al primo avvio scarica la voce scelta (Pa
 Riccardo ~25 MB) nella cartella dati; finché non è pronta usa la voce di Windows. Si cambia da
 **Impostazioni → Voce dell'assistente** (c'è anche la voce di Windows, più robotica). Le risposte
 vengono dette frase per frase: mentre una frase suona, la successiva è già in preparazione.
+
+## Riconoscimento vocale più accurato (scheda video NVIDIA)
+
+Whisper usa la scheda video se ce n'è una che funziona, altrimenti il processore (la scelta è
+automatica e il motore in uso è nel log: `whisper_ready`). Per usarla:
+
+```powershell
+uv pip install -e ".[dev,desktop,gpu]"   # librerie CUDA (cuBLAS e cuDNN), ~1 GB
+```
+
+poi in Impostazioni → «Qualità voce» scegli **Massimo (turbo)**: scarica il modello
+`large-v3-turbo` (~1,6 GB, una volta). Sulla scheda video la ricerca è più ampia (beam 5) e il
+riconoscimento resta sotto il secondo. Se la scheda non funziona (librerie mancanti, driver),
+l'app lo scrive nel log e ricade sul processore.

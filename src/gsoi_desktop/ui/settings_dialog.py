@@ -70,6 +70,9 @@ class SettingsDialog(QDialog):
         self.voice.setChecked(config.voice_enabled)
         self.voice_model = QComboBox()
         self.voice_model.addItem("Preciso (consigliato, scarica ~480 MB una volta)", "small")
+        self.voice_model.addItem(
+            "Massimo (turbo, ~1,6 GB: serve una scheda video NVIDIA, altrimenti è lento)", "turbo"
+        )
         self.voice_model.addItem("Leggero (più veloce, ~145 MB)", "base")
         self.voice_model.setCurrentIndex(max(0, self.voice_model.findData(config.voice_model)))
         self.mic = QComboBox()

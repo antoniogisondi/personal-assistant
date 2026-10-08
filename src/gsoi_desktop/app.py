@@ -152,6 +152,7 @@ def run_gui(minimized: bool, quit_after_ms: int | None = None) -> int:
     from gsoi_desktop.voice.personal_wake import PersonalWakeDetector
     from gsoi_desktop.voice.pipeline import VoiceState
     from gsoi_desktop.voice.service import VoiceService
+    from gsoi_desktop.voice.stt import WhisperTranscriber
 
     app = QApplication(sys.argv[:1])
     app.setApplicationName("GSOI")
@@ -253,7 +254,12 @@ def run_gui(minimized: bool, quit_after_ms: int | None = None) -> int:
         use = state["config"].personal_wake
         return PersonalWakeDetector.create(threshold, personal_path if use else None)
 
-    voice = VoiceService(home / "models", bridge, wake_factory=wake_factory)
+    def stt_factory(directory: Path) -> WhisperTranscriber:
+        return WhisperTranscriber(directory, device=state["config"].voice_device)
+
+    voice = VoiceService(
+        home / "models", bridge, wake_factory=wake_factory, stt_factory=stt_factory
+    )
 
     def on_voice_state(voice_state: object) -> None:
         if voice_state is VoiceState.LISTENING:

@@ -50,7 +50,8 @@ class DesktopConfig(BaseModel):
     autostart: bool = False
     read_aloud: bool = True
     voice_enabled: bool = False
-    voice_model: Literal["base", "small"] = "small"
+    voice_model: Literal["base", "small", "turbo"] = "small"
+    voice_device: Literal["auto", "cpu"] = "auto"  # auto: use an NVIDIA card when there is one
     microphone: str | None = None
     wake_threshold: float = Field(default=0.5, ge=0.2, le=0.95)
     tts: Literal["piper", "windows"] = "piper"  # natural local voice, or the Windows one

@@ -5,6 +5,7 @@ import threading
 import time
 import types
 from collections.abc import Callable
+from typing import ClassVar
 
 import numpy as np
 import pytest
@@ -537,3 +538,59 @@ def test_the_detector_never_hears_the_assistants_own_voice() -> None:
     wake.script = [0.99] * 3  # a (false) high score right after resume is ignored by the cooldown
     feed_all(p, quiet(0.2))
     assert rec.wakes == 1
+
+
+class _FakeWhisper:
+    created: ClassVar[list[tuple[str, str]]] = []
+    fail_cuda = False
+
+    def __init__(self, path: str, device: str, compute_type: str, cpu_threads: int) -> None:
+        self.created.append((device, compute_type))
+        self.beam = 0
+
+    def transcribe(self, audio: np.ndarray, **kw: object):  # type: ignore[no-untyped-def]
+        if self.created[-1][0] == "cuda" and self.fail_cuda:
+            raise RuntimeError("Library cublas64_12.dll is not found")
+        self.beam = int(kw["beam_size"])  # type: ignore[call-overload]
+
+        class Seg:
+            text = " apri Chrome "
+
+        return [Seg()], None
+
+
+@pytest.fixture
+def fake_whisper(monkeypatch: pytest.MonkeyPatch):  # type: ignore[no-untyped-def]
+    import faster_whisper
+
+    _FakeWhisper.created = []
+    _FakeWhisper.fail_cuda = False
+    monkeypatch.setattr(faster_whisper, "WhisperModel", _FakeWhisper)
+    from gsoi_desktop.voice import stt
+
+    monkeypatch.setattr(stt, "cuda_available", lambda: True)
+    return _FakeWhisper
+
+
+def test_whisper_uses_the_graphics_card_with_a_wider_search(fake_whisper, tmp_path) -> None:  # type: ignore[no-untyped-def]
+    from gsoi_desktop.voice.stt import WhisperTranscriber
+
+    t = WhisperTranscriber(tmp_path)
+    assert t.device == "cuda" and fake_whisper.created == [("cuda", "float16")]
+    assert t.transcribe(speech(1.0)[0]) == "apri Chrome"
+
+
+def test_whisper_falls_back_to_the_cpu_when_the_card_does_not_work(fake_whisper, tmp_path) -> None:  # type: ignore[no-untyped-def]
+    from gsoi_desktop.voice.stt import WhisperTranscriber
+
+    fake_whisper.fail_cuda = True
+    t = WhisperTranscriber(tmp_path)
+    assert t.device == "cpu" and fake_whisper.created == [("cuda", "float16"), ("cpu", "int8")]
+    assert t.transcribe(speech(1.0)[0]) == "apri Chrome"
+
+
+def test_whisper_can_be_forced_onto_the_cpu(fake_whisper, tmp_path) -> None:  # type: ignore[no-untyped-def]
+    from gsoi_desktop.voice.stt import WhisperTranscriber
+
+    t = WhisperTranscriber(tmp_path, device="cpu")
+    assert t.device == "cpu" and fake_whisper.created == [("cpu", "int8")]
