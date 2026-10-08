@@ -4,7 +4,18 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Index, Integer, String, Text, Uuid
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    Uuid,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from gsoi_assistant.db.base import Base, JSONType
@@ -80,3 +91,78 @@ class ModelCall(TimestampMixin, Base):
     data_class_max: Mapped[int] = mapped_column(Integer, default=1)
     status: Mapped[str] = mapped_column(String(16))
     error: Mapped[str | None] = mapped_column(Text)
+
+
+class ToolCall(TimestampMixin, Base):
+    __tablename__ = "tool_calls"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True)
+    run_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("runs.id"), index=True)
+    call_id: Mapped[str] = mapped_column(String(128))  # id assigned by the model
+    tool: Mapped[str] = mapped_column(String(128))
+    args_redacted: Mapped[dict[str, Any] | None] = mapped_column(JSONType)
+    args_hash: Mapped[str | None] = mapped_column(String(64))
+    risk: Mapped[int | None] = mapped_column(Integer)
+    decision: Mapped[str] = mapped_column(String(32))  # allow | require_approval | deny
+    approval_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("approvals.id"))
+    status: Mapped[str] = mapped_column(String(16))  # ok | error | denied | approval_required
+    latency_ms: Mapped[int] = mapped_column(Integer, default=0)
+    error: Mapped[str | None] = mapped_column(Text)
+
+
+class Approval(TimestampMixin, Base):
+    __tablename__ = "approvals"
+    __table_args__ = (Index("ix_approvals_run_tool_hash", "run_id", "tool", "args_hash"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True)
+    user_id: Mapped[str] = mapped_column(String(64), index=True)
+    run_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("runs.id"), index=True)
+    tool: Mapped[str] = mapped_column(String(128))
+    risk: Mapped[int] = mapped_column(Integer)
+    strength: Mapped[str] = mapped_column(String(16), default="normal")  # normal | strong
+    args_hash: Mapped[str] = mapped_column(String(64))
+    display: Mapped[dict[str, Any]] = mapped_column(JSONType)
+    status: Mapped[str] = mapped_column(String(16), default="pending")
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    decided_via: Mapped[str | None] = mapped_column(String(32))
+
+
+class AuditEntry(Base):
+    """Append-only, hash-chained. On PostgreSQL a trigger rejects UPDATE/DELETE/TRUNCATE."""
+
+    __tablename__ = "audit_log"
+
+    seq: Mapped[int] = mapped_column(
+        BigInteger().with_variant(Integer, "sqlite"), primary_key=True, autoincrement=True
+    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, unique=True)
+    ts: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    user_id: Mapped[str] = mapped_column(String(64), index=True)
+    actor: Mapped[str] = mapped_column(String(32))  # user | agent | system
+    action: Mapped[str] = mapped_column(String(64))
+    subject: Mapped[str] = mapped_column(String(256))
+    details: Mapped[dict[str, Any]] = mapped_column(JSONType)
+    prev_hash: Mapped[str] = mapped_column(String(64))
+    hash: Mapped[str] = mapped_column(String(64))
+
+
+class Note(TimestampMixin, Base):
+    __tablename__ = "notes"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True)
+    user_id: Mapped[str] = mapped_column(String(64), index=True)
+    title: Mapped[str] = mapped_column(String(200))
+    body: Mapped[str] = mapped_column(Text)
+
+
+class Task(TimestampMixin, Base):
+    __tablename__ = "tasks"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True)
+    user_id: Mapped[str] = mapped_column(String(64), index=True)
+    title: Mapped[str] = mapped_column(String(300))
+    notes: Mapped[str | None] = mapped_column(Text)
+    due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    status: Mapped[str] = mapped_column(String(16), default="open")  # open | done
+    source_run_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("runs.id"))

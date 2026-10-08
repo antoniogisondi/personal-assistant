@@ -8,6 +8,7 @@ API keys are never stored in settings: a profile holds only the *name* of a secr
 from __future__ import annotations
 
 from functools import lru_cache
+from pathlib import Path
 from typing import Literal
 
 from pydantic import BaseModel, Field, SecretStr, field_validator, model_validator
@@ -50,6 +51,18 @@ class Settings(BaseSettings):
 
     profiles: dict[str, ModelProfile]
     default_profile: str = "reasoning"
+
+    timezone: str = "Europe/Rome"
+    readonly: bool = False  # kill switch: only READ tools may run
+    policy_path: Path | None = None  # override the built-in authorization policy
+    approval_ttl_hours: int = 24
+    tool_output_max_chars: int = 8000
+
+    agent_max_steps: int = 12
+    agent_max_tool_calls: int = 25
+    agent_max_calls_per_step: int = 8
+    agent_max_cost_usd: float = 0.50
+    agent_deadline_s: float = 120.0
 
     history_max_messages: int = 40
     llm_max_attempts: int = 3

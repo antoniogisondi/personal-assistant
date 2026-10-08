@@ -135,3 +135,27 @@ class SqlRepository:
                     error=record.error,
                 )
             )
+
+    # run state (suspend / resume) -------------------------------------------
+
+    async def get_run(self, run_id: uuid.UUID) -> models.Run | None:
+        async with self._sf() as s:
+            return await s.get(models.Run, run_id)
+
+    async def save_run_state(
+        self,
+        run_id: uuid.UUID,
+        *,
+        status: str,
+        state: dict[str, object] | None,
+        tainted: bool,
+        cost_usd: float,
+    ) -> None:
+        async with self._sf() as s, s.begin():
+            run = await s.get(models.Run, run_id)
+            if run is None:
+                return
+            run.status = status
+            run.state = state
+            run.tainted = tainted
+            run.cost_usd = cost_usd

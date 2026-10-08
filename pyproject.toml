@@ -16,6 +16,8 @@ dependencies = [
   "structlog>=24.1",
   "tenacity>=9.0",
   "sse-starlette>=2.1",
+  "pyyaml>=6.0",
+  "tzdata>=2024.1",  # IANA time zones on Windows
 ]
 
 [project.optional-dependencies]
@@ -29,6 +31,7 @@ dev = [
   "import-linter>=2.0",
   "bandit>=1.7",
   "pip-audit>=2.7",
+  "types-PyYAML>=6.0",
 ]
 
 [project.scripts]
@@ -70,13 +73,15 @@ root_package = "gsoi_assistant"
 include_external_packages = true
 
 [[tool.importlinter.contracts]]
-name = "Layering: api -> agent -> llm -> security/core"
+name = "Layering: api -> agent -> tools -> llm -> security -> db -> config -> core"
 type = "layers"
 layers = [
   "gsoi_assistant.api",
   "gsoi_assistant.agent",
+  "gsoi_assistant.tools",
   "gsoi_assistant.llm",
-  "gsoi_assistant.security | gsoi_assistant.observability | gsoi_assistant.db",
+  "gsoi_assistant.security | gsoi_assistant.observability",
+  "gsoi_assistant.db",
   "gsoi_assistant.config",
   "gsoi_assistant.core",
 ]

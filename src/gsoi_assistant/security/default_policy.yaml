@@ -1,0 +1,20 @@
+# Default authorization policy. Evaluated in code (security/policy.py); the model cannot alter it.
+# Effects: allow | require_approval | require_strong_approval | deny
+version: 1
+
+# What happens by default for each risk level.
+defaults:
+  READ: allow
+  WRITE_LOCAL: allow
+  EXTERNAL: require_approval
+  DESTRUCTIVE: require_strong_approval
+
+# Once untrusted content (email, web page, shared document) has entered the run's context,
+# tools with side effects are no longer trusted to act on their own.
+taint:
+  WRITE_LOCAL: require_approval
+
+# Per-tool overrides. A tool may be made STRICTER than its default, never looser:
+# the loader rejects an override that would weaken EXTERNAL / DESTRUCTIVE tools.
+tools: {}
+#  notes.create: require_approval

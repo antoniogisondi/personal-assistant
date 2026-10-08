@@ -1,3 +1,3 @@
-from gsoi_assistant.agent.chat import ChatCommand, ChatResult, ChatService
+from gsoi_assistant.agent.service import AgentService, ChatCommand, ChatResult
 
-__all__ = ["ChatCommand", "ChatResult", "ChatService"]
+__all__ = ["AgentService", "ChatCommand", "ChatResult"]

@@ -13,6 +13,7 @@ from gsoi_assistant.config.settings import ModelProfile, Settings
 from gsoi_assistant.db.base import Base
 from gsoi_assistant.llm.base import Capabilities
 from gsoi_assistant.llm.testing import ScriptedProvider
+from support import Outbox, make_tools
 
 TOKEN = "test-token-0123456789abcdef"
 
@@ -69,10 +70,17 @@ def local() -> ScriptedProvider:
 
 
 @pytest.fixture
+def outbox() -> Outbox:
+    return Outbox()
+
+
+@pytest.fixture
 async def container(
-    settings: Settings, cloud: ScriptedProvider, local: ScriptedProvider
+    settings: Settings, cloud: ScriptedProvider, local: ScriptedProvider, outbox: Outbox
 ) -> AsyncIterator[Container]:
-    c = build_container(settings, providers={"reasoning": cloud, "private": local})
+    c = build_container(
+        settings, providers={"reasoning": cloud, "private": local}, extra_tools=make_tools(outbox)
+    )
     async with c.engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     yield c

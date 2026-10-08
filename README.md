@@ -9,10 +9,17 @@ da una policy di sicurezza.
 
 ## Stato
 
-Fasi 0 e 1 completate: backend FastAPI, configurazione per profili, astrazione provider LLM
-(adapter OpenAI-compatibile: DeepSeek, Ollama, vLLM, llama.cpp, OpenAI), `LLMGateway`
-(egress policy, retry, fallback, costi), endpoint chat (JSON e SSE), persistenza di
-conversazioni/run/model call, migrazioni Alembic, CI. Nessun tool/connettore ancora (Fase 2+).
+- **Fasi 0-1:** backend FastAPI, profili modello, astrazione provider LLM (DeepSeek, Ollama, vLLM,
+  llama.cpp, OpenAI via adapter compatibile), `LLMGateway` (egress policy, retry, fallback, costi),
+  chat JSON e SSE, persistenza, migrazioni, CI.
+- **Fase 2:** sistema di tool con livelli di rischio (lettura / scrittura locale / esterno /
+  distruttivo), policy di autorizzazione, approvazioni legate agli argomenti (monouso, con scadenza),
+  audit log con catena di hash, difese da prompt injection (contenuti non fidati marcati, "taint"),
+  loop dell'agente con budget e sospensione/ripresa. Tool inclusi: `time.now`, `notes.*`, `tasks.*`.
+  Nessun connettore esterno ancora (Gmail/Calendar: fasi 4-5).
+
+API principali: `POST /v1/chat`, `POST /v1/chat/stream`, `GET /v1/approvals`,
+`POST /v1/approvals/{id}/decision`, `GET /v1/runs/{id}`, `GET /v1/audit/verify`.
 
 ## Avvio rapido (sviluppo)
 

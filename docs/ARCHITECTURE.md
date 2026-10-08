@@ -13,7 +13,7 @@ Stato: bozza v0.1 · Ambito: single-user (predisposto per più utenti) · Lingua
 | Agente | Loop **ReAct con tool calling nativo**, budget di step/token/costo, stato serializzato in DB (riprendibile). Niente framework agentico pesante (LangChain/LangGraph) all'inizio: il loop sono ~200 righe e vanno controllate. |
 | Router | **Cascata a 3 livelli**: regole deterministiche → classificatore leggero (locale) → escalation a cloud. Il router decide *modello*, la **policy di privacy decide cosa può uscire** (sono due componenti distinti). |
 | Tool | Registry tipizzato (Pydantic) con **metadati di rischio** obbligatori. MCP integrato come *sorgente di tool* dietro lo stesso registry e la stessa policy. |
-| Sicurezza | Autorizzazione **in codice, non nel prompt**. 4 livelli di rischio, **approval legato all'hash degli argomenti**, token di approvazione monouso verificato dal tool di invio. Difesa da **prompt injection** come requisito di primo livello. |
+| Sicurezza | Autorizzazione **in codice, non nel prompt**. 4 livelli di rischio, **approval legato all'hash degli argomenti**, monouso e con scadenza, verificato dall'executor prima di eseguire (vedi ADR 0003). Difesa da **prompt injection** come requisito di primo livello. |
 | DB | **PostgreSQL + pgvector** (no Qdrant all'inizio). **Niente Redis in Fase 1–7**: coda e lock su Postgres. |
 | Scheduler | Tabella `automations` come fonte di verità + worker separato (APScheduler per il timing, coda su Postgres). |
 | Osservabilità | **OpenTelemetry** + log JSON strutturati + tabelle `runs/model_calls/tool_calls`. Eval harness fin dalla Fase 2. |
@@ -479,7 +479,7 @@ class Approval(BaseModel):
 def issue_token(approval: Approval, key: bytes) -> str: ...  # HMAC(id|tool|args_hash|exp), monouso
 ```
 
-Il `ToolExecutor` esegue un tool L2/L3 **solo** se presenta un token valido il cui `args_hash` coincide con gli argomenti effettivi; il token viene consumato (anti-replay). Il modello non vede né può forgiare il token. Se il modello modifica la bozza dopo l'approvazione ⇒ hash diverso ⇒ nuova approvazione.
+Il `ToolExecutor` esegue un tool L2/L3 **solo** se esiste un'approvazione `approved`, non scaduta, per quello stesso run, tool e `args_hash`; l'approvazione viene consumata con un compare-and-set atomico (anti-replay). Il modello non vede né può creare approvazioni: nasce solo da una decisione dell'utente via API. *(Implementazione: nessun token HMAC separato, vedi ADR 0003.)* Se il modello modifica la bozza dopo l'approvazione ⇒ hash diverso ⇒ nuova approvazione.
 
 ### 9.3 Permessi (minimo privilegio)
 - **Scope OAuth minimi per fase**: Gmail iniziale `gmail.readonly` + `gmail.compose` (solo bozze); `gmail.send` si richiede **solo** quando si abilita l'invio. Calendar: `calendar.readonly` poi `calendar.events`. Drive: `drive.file`/`drive.readonly`, mai `drive` completo se evitabile.

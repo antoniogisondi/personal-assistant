@@ -69,3 +69,7 @@ jobs:
           .venv/bin/alembic upgrade head
           .venv/bin/alembic downgrade base
           .venv/bin/alembic upgrade head
+      - name: Audit-log immutability and concurrency on real PostgreSQL
+        env:
+          GSOI_TEST_POSTGRES_URL: postgresql+asyncpg://gsoi:ci-only-password@localhost:5432/gsoi
+        run: .venv/bin/pytest tests/integration/test_postgres_audit.py -q

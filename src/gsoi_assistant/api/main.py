@@ -8,14 +8,17 @@ from contextlib import asynccontextmanager
 import structlog
 import uvicorn
 from fastapi import FastAPI, Request, Response
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 
 from gsoi_assistant import __version__
 from gsoi_assistant.api.container import Container, build_container
 from gsoi_assistant.api.routers import chat, health
 from gsoi_assistant.config.settings import Settings, get_settings
 from gsoi_assistant.core.errors import (
+    BadRequestError,
+    BudgetExceededError,
     CapabilityError,
+    ConflictError,
     EgressDeniedError,
     NotFoundError,
     ProviderAuthError,
@@ -34,6 +37,9 @@ _REQUEST_ID_RE = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
 _ERROR_MAP: list[tuple[type[Exception], int, str]] = [
     (EgressDeniedError, 403, "egress_denied"),
     (NotFoundError, 404, "not_found"),
+    (ConflictError, 409, "conflict"),
+    (BadRequestError, 400, "bad_request"),
+    (BudgetExceededError, 422, "budget_exceeded"),
     (UnknownProfileError, 400, "unknown_profile"),
     (CapabilityError, 400, "capability_error"),
     (RateLimitedError, 503, "provider_rate_limited"),
@@ -81,6 +87,10 @@ def create_app(settings: Settings | None = None, container: Container | None = N
 
     for exc_type, status, code in _ERROR_MAP:
         _register(exc_type, status, code)
+
+    @app.get("/", include_in_schema=False)
+    async def root() -> RedirectResponse:
+        return RedirectResponse("/docs")
 
     app.include_router(health.router)
     app.include_router(chat.router)

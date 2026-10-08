@@ -77,6 +77,9 @@ class LLMGateway:
         except KeyError:
             raise UnknownProfileError(profile) from None
 
+    def supports_tools(self, profile: str) -> bool:
+        return self._provider(profile).capabilities.tool_calling
+
     def check_egress(self, profile: str, data_class: DataClass) -> None:
         """Block (not warn) when data is too sensitive for a non-local provider.
 

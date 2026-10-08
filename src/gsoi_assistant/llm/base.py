@@ -6,6 +6,8 @@ translate to and from these types.
 
 from __future__ import annotations
 
+import json
+import uuid
 from collections.abc import AsyncIterator
 from typing import Any, Protocol
 
@@ -20,6 +22,26 @@ class ToolCall(BaseModel):
     arguments: dict[str, Any] = Field(default_factory=dict)
     # Set when the model emitted arguments that are not valid JSON (common with small models).
     arguments_error: str | None = None
+
+
+def tool_call_from_parts(call_id: str | None, name: str | None, arguments: Any) -> ToolCall:
+    """Build a ToolCall from raw provider output; invalid arguments are flagged, never raised."""
+    parsed: Any = {}
+    error: str | None = None
+    try:
+        parsed = (
+            json.loads(arguments) if isinstance(arguments, str) and arguments else arguments or {}
+        )
+        if not isinstance(parsed, dict):
+            parsed, error = {}, "arguments are not a JSON object"
+    except ValueError as exc:
+        parsed, error = {}, f"invalid JSON arguments: {exc}"
+    return ToolCall(
+        id=call_id or f"call_{uuid.uuid4().hex[:12]}",
+        name=name or "",
+        arguments=parsed,
+        arguments_error=error,
+    )
 
 
 class Message(BaseModel):

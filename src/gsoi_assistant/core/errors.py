@@ -13,6 +13,18 @@ class UnknownProfileError(GsoiError):
     pass
 
 
+class ConflictError(GsoiError):
+    """The request conflicts with the current state (e.g. approval already decided)."""
+
+
+class BadRequestError(GsoiError):
+    pass
+
+
+class BudgetExceededError(GsoiError):
+    pass
+
+
 class LLMError(GsoiError):
     """Base class for errors coming from (or blocked before) an LLM provider."""
 

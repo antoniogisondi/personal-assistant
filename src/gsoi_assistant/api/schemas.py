@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import uuid
+from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -20,19 +22,60 @@ class ChatRequestBody(BaseModel):
     )
 
 
+class ApprovalOut(BaseModel):
+    approval_id: uuid.UUID
+    run_id: uuid.UUID
+    tool: str
+    risk: str
+    strength: str
+    display: dict[str, Any]
+    expires_at: datetime
+
+
 class ChatResponseBody(BaseModel):
     run_id: uuid.UUID
     conversation_id: uuid.UUID
+    status: str = Field(description="'done' or 'awaiting_approval'")
     content: str
     model: str
     usage: UsageInfo
     cost_usd: float
+    approval: ApprovalOut | None = None
+
+
+class DecisionBody(BaseModel):
+    approve: bool
+    confirm_tool: str | None = Field(
+        default=None, description="For destructive actions: repeat the tool name to confirm."
+    )
 
 
 class MessageOut(BaseModel):
     id: uuid.UUID
     role: str
     content: str | None
+
+
+class ToolCallOut(BaseModel):
+    tool: str
+    status: str
+    decision: str
+    risk: int | None
+    latency_ms: int
+
+
+class RunOut(BaseModel):
+    run_id: uuid.UUID
+    status: str
+    tainted: bool
+    cost_usd: float
+    tool_calls: list[ToolCallOut]
+
+
+class AuditVerifyOut(BaseModel):
+    ok: bool
+    entries: int
+    first_bad_seq: int | None
 
 
 class HealthBody(BaseModel):

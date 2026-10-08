@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import uuid
-from typing import Annotated, Literal
+from datetime import datetime
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -32,6 +33,32 @@ class FinalEvent(BaseModel):
     cost_usd: float
 
 
+class ToolCallStarted(BaseModel):
+    type: Literal["tool_call_started"] = "tool_call_started"
+    call_id: str
+    tool: str
+    arguments: dict[str, Any]
+
+
+class ToolResultEvent(BaseModel):
+    type: Literal["tool_result"] = "tool_result"
+    call_id: str
+    tool: str
+    status: str  # ok | error | denied | rejected
+    summary: str
+
+
+class ApprovalRequiredEvent(BaseModel):
+    type: Literal["approval_required"] = "approval_required"
+    run_id: uuid.UUID
+    approval_id: uuid.UUID
+    tool: str
+    risk: str
+    strength: str  # normal | strong
+    display: dict[str, Any]
+    expires_at: datetime
+
+
 class ErrorEvent(BaseModel):
     type: Literal["error"] = "error"
     code: str
@@ -39,5 +66,12 @@ class ErrorEvent(BaseModel):
 
 
 AgentEvent = Annotated[
-    RunStarted | TokenEvent | FinalEvent | ErrorEvent, Field(discriminator="type")
+    RunStarted
+    | TokenEvent
+    | ToolCallStarted
+    | ToolResultEvent
+    | ApprovalRequiredEvent
+    | FinalEvent
+    | ErrorEvent,
+    Field(discriminator="type"),
 ]

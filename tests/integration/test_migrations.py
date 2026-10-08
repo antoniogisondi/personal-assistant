@@ -31,9 +31,17 @@ def test_upgrade_matches_models_and_downgrades(alembic_cfg: tuple[Config, str]) 
     with engine.connect() as conn:
         diff = compare_metadata(MigrationContext.configure(conn), Base.metadata)
         assert diff == [], f"models and migrations have drifted: {diff}"
-        assert {"conversations", "runs", "messages", "model_calls"} <= set(
-            inspect(conn).get_table_names()
-        )
+        assert {
+            "conversations",
+            "runs",
+            "messages",
+            "model_calls",
+            "approvals",
+            "tool_calls",
+            "audit_log",
+            "notes",
+            "tasks",
+        } <= set(inspect(conn).get_table_names())
     command.downgrade(cfg, "base")
     with engine.connect() as conn:
         assert "runs" not in inspect(conn).get_table_names()

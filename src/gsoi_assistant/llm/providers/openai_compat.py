@@ -27,6 +27,7 @@ from gsoi_assistant.llm.base import (
     StreamChunk,
     ToolCall,
     Usage,
+    tool_call_from_parts,
 )
 
 
@@ -186,23 +187,7 @@ def _message_to_wire(m: Message) -> dict[str, Any]:
 
 def _parse_tool_call(raw: dict[str, Any]) -> ToolCall:
     fn = raw.get("function") or {}
-    args_raw = fn.get("arguments") or "{}"
-    arguments: dict[str, Any] = {}
-    error: str | None = None
-    try:
-        parsed = json.loads(args_raw) if isinstance(args_raw, str) else args_raw
-        if isinstance(parsed, dict):
-            arguments = parsed
-        else:
-            error = "arguments are not a JSON object"
-    except ValueError as exc:
-        error = f"invalid JSON arguments: {exc}"
-    return ToolCall(
-        id=str(raw.get("id") or ""),
-        name=fn.get("name") or "",
-        arguments=arguments,
-        arguments_error=error,
-    )
+    return tool_call_from_parts(raw.get("id"), fn.get("name"), fn.get("arguments"))
 
 
 def _parse_usage(raw: dict[str, Any] | None) -> Usage:

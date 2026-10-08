@@ -12,3 +12,12 @@ class DataClass(IntEnum):
     PUBLIC = 0
     PRIVATE = 1  # email, calendar, personal files
     SECRET = 2  # credentials, health/financial data: never leaves local models
+
+
+class Risk(IntEnum):
+    """Blast radius of a tool. Drives the authorization policy."""
+
+    READ = 0  # read-only (calendar.list_events, notes.search)
+    WRITE_LOCAL = 1  # reversible, internal writes (tasks.create, notes.create)
+    EXTERNAL = 2  # effects on other people or systems (email.send)
+    DESTRUCTIVE = 3  # irreversible, financial or physical (delete, purchases)
