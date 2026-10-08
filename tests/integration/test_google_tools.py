@@ -88,7 +88,7 @@ async def connected(gcontainer: Container) -> Container:
     return gcontainer
 
 
-# ---- Gmail -----------------------------------------------------------------------------------
+# ---- Gmail -------------------------------------------------------------------------------
 
 
 async def test_email_search_returns_summaries_marked_untrusted(connected: Container) -> None:
@@ -265,7 +265,7 @@ async def test_network_failure_is_a_clean_error(connected: Container) -> None:
     assert r.status == "error" and "unreachable" in r.content
 
 
-# ---- Calendar --------------------------------------------------------------------------------
+# ---- Calendar ----------------------------------------------------------------------------
 
 
 async def test_list_events_parses_and_skips_cancelled(connected: Container) -> None:
@@ -376,7 +376,7 @@ async def test_create_event_needs_approval_and_invites_attendees(connected: Cont
     assert body["start"] == {"dateTime": "2026-10-13T15:00:00+02:00", "timeZone": "Europe/Rome"}
 
 
-# ---- Briefing --------------------------------------------------------------------------------
+# ---- Briefing ----------------------------------------------------------------------------
 
 
 def briefing_payload(r: Any) -> dict[str, Any]:
@@ -459,7 +459,7 @@ async def test_text_channel_does_not_add_voice_style(
     assert "read aloud" in (cloud.requests[1].messages[0].content or "")
 
 
-# ---- Security: hostile email content ---------------------------------------------------------
+# ---- Security: hostile email content -----------------------------------------------------
 
 
 async def test_instructions_inside_an_email_cannot_send_mail(

@@ -48,7 +48,7 @@ async def make_app(tmp_path: Path, outbox, cloud, local, *, env: dict | None = N
     return c, client
 
 
-# ---- master key ------------------------------------------------------------------------------
+# ---- master key --------------------------------------------------------------------------
 
 
 def test_master_key_is_generated_once_and_reused(tmp_path: Path) -> None:
@@ -66,7 +66,7 @@ def test_explicit_master_key_wins_over_the_file(tmp_path: Path) -> None:
     assert not (tmp_path / KEY_FILE).exists()
 
 
-# ---- configuration from the UI ------------------------------------------------------------------
+# ---- configuration from the UI -----------------------------------------------------------
 
 
 async def test_google_can_be_configured_without_touching_files(
@@ -270,7 +270,7 @@ async def test_configure_then_connect_then_use_in_one_running_app(
         await c.aclose()
 
 
-# ---- the /setup page --------------------------------------------------------------------------
+# ---- the /setup page ---------------------------------------------------------------------
 
 
 async def test_setup_page_is_served_with_a_strict_csp(client: httpx.AsyncClient) -> None:

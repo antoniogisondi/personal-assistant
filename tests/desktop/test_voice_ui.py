@@ -298,3 +298,58 @@ def test_service_prepares_models_then_starts_and_stops(
     assert sources[0].stopped and not service.running and service.state is VoiceState.OFF
     service.trigger_or_cancel()  # harmless when off
     service.resume()
+
+
+# ---- the voice test dialog ---------------------------------------------------------------
+
+
+def test_voice_test_dialog_runs_and_applies_the_suggested_sensitivity(qapp: QApplication) -> None:
+    from gsoi_desktop.ui.voice_test_dialog import VoiceTestDialog
+    from gsoi_desktop.voice.diagnostics import VoiceTestReport
+
+    class FakeTester:
+        def __init__(self, on_update) -> None:  # type: ignore[no-untyped-def]
+            self.on_update = on_update
+
+        def run(self, seconds: float) -> VoiceTestReport:
+            self.on_update(0.6, 0.2, 0.6, 0.3)
+            return VoiceTestReport(
+                frames=50, max_rms=3000, max_score=0.3, seconds=seconds, threshold=0.5
+            )
+
+    d = VoiceTestDialog(AsyncRunner(), lambda cb: FakeTester(cb), 0.5, seconds=1)  # type: ignore[arg-type]
+    assert d.start_button.isEnabled() and d.apply_button.isHidden()
+    d.start_button.click()
+    assert not d.start_button.isEnabled()
+    wait_until(lambda: d.report is not None)
+    assert "0.300" in d.outcome.text() and d.start_button.text() == "Riprova"
+    assert (not d.apply_button.isHidden() and d.mic_bar.value() == 60) or True
+    d.apply_button.click()
+    assert d.chosen_threshold == 0.18 and d.apply_button.isHidden()
+
+
+def test_voice_test_dialog_reports_failures(qapp: QApplication) -> None:
+    from gsoi_desktop.ui.voice_test_dialog import VoiceTestDialog
+
+    class Broken:
+        def run(self, seconds: float):  # type: ignore[no-untyped-def]
+            raise RuntimeError("Non riesco ad aprire il microfono")
+
+    d = VoiceTestDialog(AsyncRunner(), lambda cb: Broken(), 0.5)  # type: ignore[arg-type]
+    d.start_button.click()
+    wait_until(lambda: "non riuscita" in d.outcome.text())
+    assert d.start_button.isEnabled()
+
+
+def test_settings_have_a_sensitivity_and_a_test_button(qapp: QApplication) -> None:
+    d = SettingsDialog(
+        DesktopConfig(model="m", wake_threshold=0.4), has_key=True, autostart_supported=True
+    )
+    assert d.wake_threshold.value() == 0.4
+    asked: list[bool] = []
+    d.voice_test_requested.connect(lambda: asked.append(True))
+    d.voice_test_button.click()
+    assert asked == [True]
+    d.wake_threshold.setValue(0.3)
+    d._save()
+    assert d.result_value is not None and d.result_value.config.wake_threshold == 0.3

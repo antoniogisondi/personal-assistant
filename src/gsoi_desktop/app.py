@@ -87,6 +87,50 @@ def _selftest(home: Path | None) -> int:
         runtime.stop()
 
 
+def voice_test(seconds: float = 15.0) -> int:
+    """Console diagnostic: speak "Hey Jarvis" and watch what the microphone and detector see."""
+    from gsoi_desktop.voice.audio import MicrophoneError, SoundDeviceSource
+    from gsoi_desktop.voice.diagnostics import VoiceTester, advise, format_report
+    from gsoi_desktop.voice.wake import (
+        OpenWakeWordDetector,
+        VoiceUnavailableError,
+        ensure_wake_models,
+    )
+
+    home = app_home()
+    config = load_config(home)
+    try:
+        ensure_wake_models()
+        detector = OpenWakeWordDetector(config.wake_threshold)
+    except VoiceUnavailableError as exc:
+        print(f"Voce non disponibile: {exc}")
+        return 1
+
+    def show(level: float, score: float, max_level: float, max_score: float) -> None:
+        bar = "#" * int(level * 30)
+        mark = "  <-- RICONOSCIUTO" if score >= config.wake_threshold else ""
+        print(
+            f"\rmic [{bar:<30}] parola {score:4.2f} (max {max_score:4.2f}){mark}      ",
+            end="",
+            flush=True,
+        )
+
+    print(f"Prova di {seconds:.0f} secondi: di' ben chiaro «Hey Jarvis» un paio di volte...")
+    try:
+        report = VoiceTester(
+            SoundDeviceSource(config.microphone), detector, config.wake_threshold, show
+        ).run(seconds)
+    except MicrophoneError as exc:
+        print(f"\n{exc}")
+        return 1
+    advice = advise(report)
+    text = format_report(report, advice)
+    print("\n\n" + text)
+    (home / "logs").mkdir(exist_ok=True)
+    (home / "logs" / "voice-test.txt").write_text(text, encoding="utf-8")
+    return 0 if advice.ok else 2
+
+
 def run_gui(minimized: bool, quit_after_ms: int | None = None) -> int:
     from PySide6.QtCore import QLockFile
     from PySide6.QtWidgets import QApplication, QMessageBox, QWidget
@@ -200,6 +244,35 @@ def run_gui(minimized: bool, quit_after_ms: int | None = None) -> int:
 
         runner.run(lambda: voice.enable(cfg, bridge.report_progress), done, broke)
 
+    def open_voice_test(dialog: SettingsDialog) -> None:
+        from gsoi_desktop.ui.voice_test_dialog import VoiceTestDialog, make_default_tester_factory
+        from gsoi_desktop.voice.wake import (
+            OpenWakeWordDetector,
+            VoiceUnavailableError,
+            ensure_wake_models,
+        )
+
+        try:
+            ensure_wake_models()
+            detector = OpenWakeWordDetector(dialog.wake_threshold.value())
+        except VoiceUnavailableError as exc:
+            window.add("error", f"Prova non disponibile: {exc}")
+            return
+        mic = dialog.mic.currentData()
+        voice.pause()  # the test needs the microphone for itself
+        try:
+            tester = VoiceTestDialog(
+                runner,
+                make_default_tester_factory(mic, detector, dialog.wake_threshold.value()),
+                dialog.wake_threshold.value(),
+                dialog,
+            )
+            tester.exec()
+            if tester.chosen_threshold is not None:
+                dialog.wake_threshold.setValue(tester.chosen_threshold)
+        finally:
+            voice.unpause()
+
     def show_settings() -> None:
         dialog = SettingsDialog(
             state["config"],
@@ -208,6 +281,7 @@ def run_gui(minimized: bool, quit_after_ms: int | None = None) -> int:
             microphones=list_microphones,
             parent=window,
         )
+        dialog.voice_test_requested.connect(lambda: open_voice_test(dialog))
         if dialog.exec() != SettingsDialog.DialogCode.Accepted or dialog.result_value is None:
             return
         result = dialog.result_value
@@ -276,6 +350,8 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if args.selftest:
         return selftest()
+    if args.voice_test:
+        return voice_test()
     if args.gui_selftest:
         code = run_gui(minimized=False, quit_after_ms=1500)
         return _record(None, code)

@@ -142,7 +142,7 @@ async def test_too_many_tool_calls_in_one_step_are_cut(
     assert sum("too many tool calls" in (m.content or "") for m in tool_msgs) == 4
 
 
-# ---- approval: suspend / resume ------------------------------------------------
+# ---- approval: suspend / resume ----------------------------------------------------------
 
 
 async def test_run_suspends_for_approval_then_resumes(

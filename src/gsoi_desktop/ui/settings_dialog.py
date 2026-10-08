@@ -3,14 +3,17 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 
+from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QDialog,
     QDialogButtonBox,
+    QDoubleSpinBox,
     QFormLayout,
     QLabel,
     QLineEdit,
+    QPushButton,
     QVBoxLayout,
     QWidget,
 )
@@ -25,6 +28,8 @@ class SettingsResult:
 
 
 class SettingsDialog(QDialog):
+    voice_test_requested = Signal()
+
     def __init__(
         self,
         config: DesktopConfig,
@@ -71,6 +76,14 @@ class SettingsDialog(QDialog):
         for device_id, label in microphones() if microphones else []:
             self.mic.addItem(label, device_id)
         self.mic.setCurrentIndex(max(0, self.mic.findData(config.microphone)))
+        self.wake_threshold = QDoubleSpinBox()
+        self.wake_threshold.setRange(0.15, 0.95)
+        self.wake_threshold.setSingleStep(0.05)
+        self.wake_threshold.setDecimals(2)
+        self.wake_threshold.setValue(config.wake_threshold)
+        self.wake_threshold.setToolTip("Più basso = più sensibile (scatta più facilmente)")
+        self.voice_test_button = QPushButton("Prova il microfono e «Hey Jarvis»...")
+        self.voice_test_button.clicked.connect(self.voice_test_requested.emit)
         self.voice_note = QLabel(
             "Il riconoscimento avviene sul tuo computer: l'audio non esce da qui. "
             "Parla in inglese per «Hey Jarvis»; il comando che segue puoi dirlo in italiano."
@@ -99,9 +112,11 @@ class SettingsDialog(QDialog):
         voice_form = QFormLayout()
         voice_form.addRow("Qualità voce", self.voice_model)
         voice_form.addRow("Microfono", self.mic)
+        voice_form.addRow("Soglia «Hey Jarvis» (più bassa = più sensibile)", self.wake_threshold)
         for w in (self.autostart, self.read_aloud, self.tool_calling, self.voice):
             layout.addWidget(w)
         layout.addLayout(voice_form)
+        layout.addWidget(self.voice_test_button)
         layout.addWidget(self.voice_note)
         layout.addWidget(self.error)
         layout.addWidget(buttons)
@@ -150,6 +165,7 @@ class SettingsDialog(QDialog):
                 "voice_enabled": self.voice.isChecked(),
                 "voice_model": self.voice_model.currentData(),
                 "microphone": self.mic.currentData(),
+                "wake_threshold": round(self.wake_threshold.value(), 2),
             }
         )
         self.result_value = SettingsResult(cfg, key or None)

@@ -210,7 +210,7 @@ async def test_error_message_does_not_leak_api_key(
     assert "sk-test-secret-value-123" not in str(ei.value)
 
 
-# ---- streaming -------------------------------------------------------------
+# ---- streaming ---------------------------------------------------------------------------
 
 
 @respx.mock
@@ -273,7 +273,7 @@ async def test_stream_ignores_garbage_lines(compat: tuple[OpenAICompatProvider, 
     assert "ok" in "".join([c.delta or "" async for c in p.stream(REQ)])
 
 
-# ---- behaviour every provider shares ---------------------------------------
+# ---- behaviour every provider shares -----------------------------------------------------
 
 
 @pytest.fixture

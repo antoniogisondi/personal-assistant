@@ -187,7 +187,7 @@ async def test_credentials_are_per_user(gcontainer: Container) -> None:
     assert await gcontainer.google.access_token("alice") == "access-token-abc"  # type: ignore[union-attr]
 
 
-# ---- HTTP endpoints ------------------------------------------------------------------------
+# ---- HTTP endpoints ----------------------------------------------------------------------
 
 
 @respx.mock

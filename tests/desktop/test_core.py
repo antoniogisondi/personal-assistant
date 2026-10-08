@@ -32,7 +32,7 @@ from gsoi_desktop.runtime import (
 )
 from gsoi_desktop.secrets_store import FileSecrets, choose_secret_store
 
-# ---- paths / config ---------------------------------------------------------------------
+# ---- paths / config ----------------------------------------------------------------------
 
 
 def test_app_home_honours_override(home: Path) -> None:
@@ -142,7 +142,7 @@ def test_autostart_is_a_noop_outside_windows() -> None:
     a.set_enabled(True)  # must not raise
 
 
-# ---- controller -------------------------------------------------------------------------
+# ---- controller --------------------------------------------------------------------------
 
 
 class FakeApi:
@@ -294,7 +294,7 @@ SSE_REPLY = (
 )
 
 
-# ---- settings + the embedded backend, end to end -----------------------------------------------
+# ---- settings + the embedded backend, end to end -----------------------------------------
 
 
 def test_settings_for_a_cloud_profile(home: Path) -> None:

@@ -28,7 +28,7 @@ def b64(text: str) -> str:
     return base64.urlsafe_b64encode(text.encode()).decode().rstrip("=")  # Gmail omits padding
 
 
-# ---- Gmail parsing ---------------------------------------------------------------------
+# ---- Gmail parsing -----------------------------------------------------------------------
 
 
 def test_prefers_plain_text_and_lists_attachments() -> None:
@@ -118,7 +118,7 @@ def test_compose_rejects_header_injection_and_bad_input(bad: dict[str, object]) 
         compose(**bad)
 
 
-# ---- free slots -------------------------------------------------------------------------
+# ---- free slots --------------------------------------------------------------------------
 
 
 MON = date(2026, 10, 12)  # a Monday
@@ -192,7 +192,7 @@ def test_multiple_days() -> None:
     assert out == [(dt(MON + timedelta(days=1), 9), dt(MON + timedelta(days=1), 18))]
 
 
-# ---- inputs -----------------------------------------------------------------------------
+# ---- inputs ------------------------------------------------------------------------------
 
 
 def test_naive_datetimes_are_interpreted_in_user_timezone() -> None:

@@ -86,6 +86,15 @@ class VoiceService:
         runner.start()  # raises if the microphone cannot be opened
         self._pipeline, self._runner = pipeline, runner
 
+    def pause(self) -> None:
+        """Release the microphone (e.g. for the voice test) but keep the models loaded."""
+        if self._runner is not None:
+            self._runner.stop()
+
+    def unpause(self) -> None:
+        if self._runner is not None:
+            self._runner.start()
+
     def disable(self) -> None:
         runner, self._runner = self._runner, None
         if runner is not None:
