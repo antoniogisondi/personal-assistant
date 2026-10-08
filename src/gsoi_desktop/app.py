@@ -23,6 +23,24 @@ def selftest(home: Path | None = None) -> int:
     return _record(home, _selftest(home))
 
 
+def _voice_selftest() -> str | None:
+    """The voice libraries and the bundled wake-word model load and run (None when all is well)."""
+    try:
+        import ctranslate2  # noqa: F401
+        import faster_whisper  # noqa: F401
+        import numpy as np
+        import sounddevice  # noqa: F401
+
+        from gsoi_desktop.voice.wake import OpenWakeWordDetector, wake_models_present
+
+        if not wake_models_present():
+            return "wake-word models are missing from the bundle"
+        score = OpenWakeWordDetector().predict(np.zeros(1280, dtype=np.int16))
+        return None if 0.0 <= score <= 1.0 else f"unexpected wake score {score}"
+    except Exception as exc:
+        return f"{type(exc).__name__}: {exc}"
+
+
 def _record(home: Path | None, code: int) -> int:
     env_home = os.environ.get("GSOI_DESKTOP_HOME")
     target = home or (Path(env_home) if env_home else None)
@@ -50,6 +68,10 @@ def _selftest(home: Path | None) -> int:
         failed = [name for name, r in checks.items() if r.status_code != 200]
         if failed:
             print(f"SELFTEST FAILED: {', '.join(failed)}")
+            return 1
+        voice_problem = _voice_selftest()
+        if voice_problem:
+            print(f"SELFTEST FAILED: voice: {voice_problem}")
             return 1
         unauthenticated = httpx.get(f"{runtime.base_url}/v1/connections", timeout=10).status_code
         if unauthenticated != 401:
@@ -79,6 +101,10 @@ def run_gui(minimized: bool, quit_after_ms: int | None = None) -> int:
     from gsoi_desktop.ui.settings_dialog import SettingsDialog
     from gsoi_desktop.ui.speech import Speaker
     from gsoi_desktop.ui.tray import Tray
+    from gsoi_desktop.ui.voice_bridge import VoiceBridge
+    from gsoi_desktop.voice.audio import list_microphones
+    from gsoi_desktop.voice.pipeline import VoiceState
+    from gsoi_desktop.voice.service import VoiceService
 
     app = QApplication(sys.argv[:1])
     app.setApplicationName("GSOI")
@@ -128,11 +154,58 @@ def run_gui(minimized: bool, quit_after_ms: int | None = None) -> int:
         read_aloud=lambda: state["config"].read_aloud,
     )
 
+    # ---- voice -----------------------------------------------------------------------------
+    bridge = VoiceBridge()
+    voice = VoiceService(home / "models", bridge)
+
+    def on_voice_state(voice_state: object) -> None:
+        if voice_state is VoiceState.LISTENING:
+            window.show_listening(0.0)
+        elif voice_state is VoiceState.TRANSCRIBING:
+            window.show_idle()
+            window.status.setText("Ti ho sentito, un attimo...")
+        elif voice_state is VoiceState.WAITING:
+            window.show_idle()
+            window.status.setText("")
+
+    def on_voice_heard(text: str) -> None:
+        window.submit_voice(text)
+
+    bridge.state_changed.connect(on_voice_state)
+    bridge.level_changed.connect(window.set_voice_level)
+    bridge.heard.connect(on_voice_heard)
+    bridge.failed.connect(lambda message: window.add("error", message))
+    bridge.progress.connect(
+        lambda what, fraction: window.status.setText(
+            f"{what} {int(fraction * 100)}%" if 0 < fraction < 1 else what
+        )
+    )
+    window.voice_turn_finished.connect(voice.resume)
+    window.microphone_toggled.connect(voice.trigger_or_cancel)
+
+    def apply_voice(cfg: DesktopConfig) -> None:
+        if not cfg.voice_enabled:
+            voice.disable()
+            window.set_voice_available(False)
+            window.status.setText("")
+            return
+
+        def done(_: object) -> None:
+            window.status.setText("")
+            window.set_voice_available(True)
+
+        def broke(error: Exception) -> None:
+            window.status.setText("")
+            window.add("error", f"Comando vocale non disponibile: {error}")
+
+        runner.run(lambda: voice.enable(cfg, bridge.report_progress), done, broke)
+
     def show_settings() -> None:
         dialog = SettingsDialog(
             state["config"],
             has_key=runtime.model_key_present,
             autostart_supported=autostart.supported,
+            microphones=list_microphones,
             parent=window,
         )
         if dialog.exec() != SettingsDialog.DialogCode.Accepted or dialog.result_value is None:
@@ -145,6 +218,7 @@ def run_gui(minimized: bool, quit_after_ms: int | None = None) -> int:
         state["config"] = result.config
         window.status.setText("Applico le impostazioni...")
         runner.run(lambda: runtime.restart(result.config), applied, failed)
+        apply_voice(result.config)
 
     def applied(_: object) -> None:
         window.status.setText("")
@@ -163,6 +237,7 @@ def run_gui(minimized: bool, quit_after_ms: int | None = None) -> int:
     window.open_services.connect(show_services)
 
     def quit_app() -> None:
+        voice.disable()
         speaker.close()
         tray.hide()
         app.quit()
@@ -171,6 +246,8 @@ def run_gui(minimized: bool, quit_after_ms: int | None = None) -> int:
     window.hide_on_close = tray.available  # without a tray, closing really quits
     app.aboutToQuit.connect(runtime.stop)
 
+    if config.voice_enabled:
+        apply_voice(config)
     if config.autostart and autostart.supported and not autostart.is_enabled():
         autostart.set_enabled(True)  # keep the registry entry pointing at this executable
 

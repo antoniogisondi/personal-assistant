@@ -1,9 +1,6 @@
 from __future__ import annotations
 
-import time
-from collections.abc import Callable
 from dataclasses import replace
-from typing import Any
 
 import pytest
 
@@ -24,22 +21,7 @@ from gsoi_desktop.ui.services_dialog import ServicesDialog
 from gsoi_desktop.ui.settings_dialog import SettingsDialog
 from gsoi_desktop.ui.speech import Speaker
 from gsoi_desktop.ui.tray import Tray
-
-
-@pytest.fixture(scope="session")
-def qapp() -> QApplication:
-    return QApplication.instance() or QApplication([])  # type: ignore[return-value]
-
-
-def wait_until(cond: Callable[[], bool], timeout: float = 5.0) -> None:
-    end = time.monotonic() + timeout
-    while not cond():
-        QApplication.processEvents()
-        if time.monotonic() > end:
-            raise AssertionError("condition not reached in time")
-        time.sleep(0.005)
-    QApplication.processEvents()
-
+from qt_helpers import FakeChat, FakeSpeaker, wait_until
 
 APPROVAL = Approval(
     "a1",
@@ -49,42 +31,6 @@ APPROVAL = Approval(
     "Invia email a marco@example.com",
     {"to": ["marco@example.com"]},
 )
-
-
-class FakeChat:
-    def __init__(self) -> None:
-        self.calls: list[tuple[str, Any]] = []
-        self.next: Turn | Exception = Turn(text="Ciao!")
-        self.decision_result = Turn(text="Email inviata.")
-
-    def send(self, text: str) -> Turn:
-        self.calls.append(("send", text))
-        if isinstance(self.next, Exception):
-            raise self.next
-        return self.next
-
-    def briefing(self) -> Turn:
-        self.calls.append(("briefing", None))
-        return Turn(text="Buongiorno signore, hai due impegni.")
-
-    def decide(self, approval: Approval, approve: bool) -> Turn:
-        self.calls.append(("decide", approve))
-        return self.decision_result
-
-    def new_conversation(self) -> None:
-        self.calls.append(("new", None))
-
-
-class FakeSpeaker:
-    def __init__(self) -> None:
-        self.said: list[str] = []
-        self.stopped = 0
-
-    def speak(self, text: str) -> None:
-        self.said.append(text)
-
-    def stop(self) -> None:
-        self.stopped += 1
 
 
 def make_window(
@@ -106,7 +52,7 @@ def make_window(
     return w, chat, speaker
 
 
-# ---- main window -----------------------------------------------------------------------------
+# ---- main window -------------------------------------------------------------------------
 
 
 def test_unconfigured_window_guides_the_user_and_blocks_chat(qapp: QApplication) -> None:
@@ -228,7 +174,7 @@ def test_closing_hides_to_the_tray_instead_of_quitting(qapp: QApplication) -> No
     assert event2.isAccepted()
 
 
-# ---- dialogs ---------------------------------------------------------------------------------
+# ---- dialogs -----------------------------------------------------------------------------
 
 
 def test_approval_dialog_defaults_to_reject_and_shows_exact_details(qapp: QApplication) -> None:
@@ -294,7 +240,7 @@ def test_settings_keep_the_stored_key_and_local_models_need_none(qapp: QApplicat
     assert local.result_value is not None and local.result_value.config.provider == "ollama"
 
 
-# ---- services dialog -------------------------------------------------------------------------
+# ---- services dialog ---------------------------------------------------------------------
 
 
 class FakeController:
@@ -376,7 +322,7 @@ def test_services_show_errors(qapp: QApplication) -> None:
     wait_until(lambda: "non raggiungibile" in d.message.text())
 
 
-# ---- small pieces ----------------------------------------------------------------------------
+# ---- small pieces ------------------------------------------------------------------------
 
 
 def test_speaker_with_a_mock_engine_and_without_one(qapp: QApplication) -> None:
@@ -408,7 +354,7 @@ def test_tray_and_icon(qapp: QApplication) -> None:
     t.hide()
 
 
-# ---- the neural face ------------------------------------------------------------------------
+# ---- the neural face ---------------------------------------------------------------------
 
 
 def test_neural_view_states_levels_and_animation(qapp: QApplication) -> None:

@@ -60,11 +60,54 @@ Regole valide per tutti i livelli: ogni azione passa dal registro di audit, la m
 (`readonly`) le blocca tutte, e un'istruzione scritta dentro un'email o una pagina web non può mai
 autorizzarle.
 
-## Voce (prossimo passo)
+## Voce
 
-L'interfaccia è già pensata per la voce (stati "ti ascolto"/"parlo", livello del microfono che anima
-la rete, pulsante microfono). Manca il collegamento con l'audio:
+Si attiva da **Impostazioni → Comando vocale**. Tutto gira sul tuo PC: l'audio non viene mai
+inviato da nessuna parte; all'assistente arriva solo il **testo** del comando, come se lo avessi
+scritto.
 
-1. **Parola di attivazione** sempre in ascolto, in locale (nessun audio lascia il PC prima).
-2. **Riconoscimento vocale** in locale (faster-whisper).
-3. **Sintesi vocale**: già attiva con le voci di Windows per il riepilogo; poi una voce più naturale.
+```
+microfono ─▶ parola di attivazione "Hey Jarvis" (sempre in ascolto, leggerissima)
+              │ scatta
+              ▼
+          ascolta il comando ─▶ si ferma dopo una pausa (~1 s)
+              │
+              ▼
+          riconoscimento vocale locale (Whisper) ─▶ testo ─▶ assistente (strumenti, approvazioni)
+              │
+              ▼
+          risposta a voce ─▶ finita la voce, torna in ascolto della parola di attivazione
+```
+
+- **Parola di attivazione**: [openWakeWord](https://github.com/dscripka/openWakeWord), modello
+  "hey jarvis" (pochi MB, inglese: dì «Hey Jarvis»; il comando dopo puoi dirlo in italiano).
+  Una parola personalizzata ("GSOI") richiede di addestrare un modello dedicato: è possibile ma
+  non è ancora fatto.
+- **Riconoscimento**: faster-whisper in locale, modello *Preciso* (~480 MB, consigliato per
+  l'italiano) o *Leggero* (~145 MB). Si scarica una volta, al primo utilizzo, con la percentuale
+  nella finestra. Conviene il modello Preciso su un PC con qualche anno e almeno 8 GB di RAM.
+- **Mentre l'assistente risponde il microfono è ignorato**, così non si ascolta da solo.
+  Per interromperlo clicca sulla rete neurale.
+- **Pulsante microfono** (🎤): parla senza dire la parola di attivazione; ripremilo per annullare.
+- **Conferme a voce: non esistono, di proposito.** Inviare email o creare eventi apre sempre la
+  finestra di approvazione, che si conferma con il mouse: una frase detta (o sentita da un video,
+  o dalla TV) non può autorizzare azioni.
+
+### Cosa è verificato e cosa no
+
+Verificato con test automatici: il rilevamento ("Hey Jarvis" ≥ 0,99 su registrazioni sintetiche;
+altre frasi < 0,07), la cattura del comando e la pausa finale (anche con rumore di fondo), il
+riconoscimento su audio registrato, il comportamento della macchina a stati (timeout, errori,
+spegnimento durante il riconoscimento).
+
+**Da provare sul tuo PC**, perché dipende dal microfono, dalla stanza e dalla tua pronuncia: la
+soglia di attivazione (`wake_threshold` in `%LOCALAPPDATA%\GSOI\config.json`, 0,5 di partenza:
+abbassala se non ti sente, alzala se scatta da sola), il tempo di risposta del modello vocale sul
+tuo processore e la qualità del riconoscimento con la tua voce.
+
+### La voce dell'assistente
+
+Oggi usa le voci installate in Windows. Il motore è intercambiabile. Voci cloni di persone reali
+(ad esempio doppiatori) non vengono integrate: senza il loro consenso e una licenza non possono
+essere distribuite in un prodotto. Strade corrette: una voce open source (es. Piper), la tua voce
+clonata con il tuo consenso, o una voce con licenza.

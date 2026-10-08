@@ -20,6 +20,8 @@ jobs:
         run: |
           uv venv
           uv pip install -e ".[dev,desktop]"
+      - name: Wake-word models (a few MB, for the voice tests)
+        run: .venv/bin/python -c "from gsoi_desktop.voice.wake import ensure_wake_models; ensure_wake_models()"
       - name: Lint
         run: |
           .venv/bin/ruff check .

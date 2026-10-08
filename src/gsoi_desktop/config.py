@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+from typing import Literal
 
 from pydantic import BaseModel, Field, ValidationError
 
@@ -48,6 +49,10 @@ class DesktopConfig(BaseModel):
     timezone: str = "Europe/Rome"
     autostart: bool = False
     read_aloud: bool = True
+    voice_enabled: bool = False
+    voice_model: Literal["base", "small"] = "small"
+    microphone: str | None = None
+    wake_threshold: float = Field(default=0.5, ge=0.2, le=0.95)
 
     def is_configured(self, has_key: bool) -> bool:
         provider = PROVIDERS.get(self.provider)

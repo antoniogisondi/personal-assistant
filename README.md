@@ -25,7 +25,8 @@ da una policy di sicurezza.
 - **App desktop (Windows):** programma unico con interfaccia PySide6 (rete neurale animata),
   icona nella barra, avvio con Windows, servizio interno incorporato, segreti nelle credenziali di
   Windows, controllo del PC di primo livello (apri programmi, indirizzi web, cartelle).
-  Guida: [docs/desktop.md](docs/desktop.md). Comando vocale: prossimo passo.
+  Comando vocale locale: «Hey Jarvis» + riconoscimento Whisper sul PC, risposta a voce.
+  Guida: [docs/desktop.md](docs/desktop.md).
 
 API principali: `POST /v1/chat`, `POST /v1/chat/stream`, `GET /v1/approvals`,
 `POST /v1/approvals/{id}/decision`, `POST /v1/briefing`, `GET /v1/connections`,

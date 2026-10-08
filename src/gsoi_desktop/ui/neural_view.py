@@ -19,7 +19,7 @@ import time
 from dataclasses import dataclass
 from enum import Enum
 
-from PySide6.QtCore import QPointF, Qt, QTimer
+from PySide6.QtCore import QPointF, Qt, QTimer, Signal
 from PySide6.QtGui import QBrush, QColor, QPainter, QPen, QRadialGradient
 from PySide6.QtWidgets import QSizePolicy, QWidget
 
@@ -64,6 +64,8 @@ class _Pulse:
 
 
 class NeuralView(QWidget):
+    clicked = Signal()  # e.g. to interrupt the assistant while it speaks
+
     NODES = 70
     NEIGHBOURS = 3
 
@@ -221,6 +223,11 @@ class NeuralView(QWidget):
         self.tick(now - self._last)
         self._last = now
         self.update()
+
+    def mousePressEvent(self, event) -> None:  # type: ignore[no-untyped-def]
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.clicked.emit()
+        super().mousePressEvent(event)
 
     def showEvent(self, event) -> None:  # type: ignore[no-untyped-def]
         self._last = time.monotonic()

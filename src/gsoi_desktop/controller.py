@@ -77,8 +77,8 @@ class AssistantController:
     def new_conversation(self) -> None:
         self.conversation_id = None
 
-    def send(self, text: str) -> Turn:
-        data = self._api.chat(text, self.conversation_id)
+    def send(self, text: str, channel: str = "text") -> Turn:
+        data = self._api.chat(text, self.conversation_id, channel)
         self.conversation_id = data["conversation_id"]
         return _turn(data)
 

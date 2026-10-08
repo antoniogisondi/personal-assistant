@@ -153,3 +153,12 @@ def home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     h.mkdir()
     monkeypatch.setenv("GSOI_DESKTOP_HOME", str(h))
     return h
+
+
+@pytest.fixture(scope="session")
+def qapp():  # type: ignore[no-untyped-def]
+    """One QApplication for the whole run (Qt allows only one)."""
+    pytest.importorskip("PySide6")
+    from PySide6.QtWidgets import QApplication
+
+    return QApplication.instance() or QApplication([])

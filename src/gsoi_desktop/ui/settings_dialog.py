@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 
 from PySide6.QtWidgets import (
@@ -30,6 +31,7 @@ class SettingsDialog(QDialog):
         *,
         has_key: bool,
         autostart_supported: bool,
+        microphones: Callable[[], list[tuple[str, str]]] | None = None,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
@@ -58,6 +60,23 @@ class SettingsDialog(QDialog):
         self.read_aloud.setChecked(config.read_aloud)
         self.tool_calling = QCheckBox("Il modello supporta l'uso di strumenti (consigliato)")
         self.tool_calling.setChecked(config.tool_calling)
+        self.voice = QCheckBox("Comando vocale: di' «Hey Jarvis» e poi parla")
+        self.voice.setChecked(config.voice_enabled)
+        self.voice_model = QComboBox()
+        self.voice_model.addItem("Preciso (consigliato, scarica ~480 MB una volta)", "small")
+        self.voice_model.addItem("Leggero (più veloce, ~145 MB)", "base")
+        self.voice_model.setCurrentIndex(max(0, self.voice_model.findData(config.voice_model)))
+        self.mic = QComboBox()
+        self.mic.addItem("Microfono predefinito", None)
+        for device_id, label in microphones() if microphones else []:
+            self.mic.addItem(label, device_id)
+        self.mic.setCurrentIndex(max(0, self.mic.findData(config.microphone)))
+        self.voice_note = QLabel(
+            "Il riconoscimento avviene sul tuo computer: l'audio non esce da qui. "
+            "Parla in inglese per «Hey Jarvis»; il comando che segue puoi dirlo in italiano."
+        )
+        self.voice_note.setWordWrap(True)
+        self.voice_note.setStyleSheet("color: #6b7280;")
         self.error = QLabel("")
         self.error.setStyleSheet("color: #b3261e;")
         self.error.setWordWrap(True)
@@ -77,8 +96,15 @@ class SettingsDialog(QDialog):
 
         layout = QVBoxLayout(self)
         layout.addLayout(form)
-        for w in (self.autostart, self.read_aloud, self.tool_calling, self.error, buttons):
+        voice_form = QFormLayout()
+        voice_form.addRow("Qualità voce", self.voice_model)
+        voice_form.addRow("Microfono", self.mic)
+        for w in (self.autostart, self.read_aloud, self.tool_calling, self.voice):
             layout.addWidget(w)
+        layout.addLayout(voice_form)
+        layout.addWidget(self.voice_note)
+        layout.addWidget(self.error)
+        layout.addWidget(buttons)
         self.provider.currentIndexChanged.connect(self._provider_changed)
         self._sync_key_field()
 
@@ -121,6 +147,9 @@ class SettingsDialog(QDialog):
                 "autostart": self.autostart.isChecked(),
                 "read_aloud": self.read_aloud.isChecked(),
                 "tool_calling": self.tool_calling.isChecked(),
+                "voice_enabled": self.voice.isChecked(),
+                "voice_model": self.voice_model.currentData(),
+                "microphone": self.mic.currentData(),
             }
         )
         self.result_value = SettingsResult(cfg, key or None)

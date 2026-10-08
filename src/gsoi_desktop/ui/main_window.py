@@ -4,7 +4,7 @@ import html
 from collections.abc import Callable
 from typing import Protocol
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QCloseEvent
 from PySide6.QtWidgets import (
     QHBoxLayout,
@@ -25,7 +25,7 @@ from gsoi_desktop.ui.neural_view import STATE_LABEL, NeuralState, NeuralView
 
 
 class Chat(Protocol):
-    def send(self, text: str) -> Turn: ...
+    def send(self, text: str, channel: str = ...) -> Turn: ...
     def briefing(self) -> Turn: ...
     def decide(self, approval: Approval, approve: bool) -> Turn: ...
     def new_conversation(self) -> None: ...
@@ -88,6 +88,7 @@ class MainWindow(QMainWindow):
     open_settings = Signal()
     open_services = Signal()
     microphone_toggled = Signal()
+    voice_turn_finished = Signal()  # a spoken exchange is over: listen for the wake word again
 
     def __init__(
         self,
@@ -176,6 +177,12 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(root)
         self._speaking = False
         self._listening = False
+        self._voice_turn = False
+        self._awaiting_speech_end = False
+        self._speech_timer = QTimer(self)
+        self._speech_timer.setSingleShot(True)
+        self._speech_timer.timeout.connect(self._finish_voice_turn)
+        self.neural.clicked.connect(self.interrupt_speech)
         speaking_signal = getattr(speaker, "speaking_changed", None)
         if speaking_signal is not None:
             speaking_signal.connect(self.set_speaking)
@@ -199,8 +206,35 @@ class MainWindow(QMainWindow):
         self.state_label.setText(STATE_LABEL[self.neural.state].upper())
 
     def set_speaking(self, speaking: bool) -> None:
+        was = self._speaking
         self._speaking = speaking
         self._refresh_visual()
+        if was and not speaking and self._awaiting_speech_end:
+            self._finish_voice_turn()
+
+    @staticmethod
+    def _speech_safety_ms(text: str) -> int:
+        """Upper bound for speaking a text (a safety net if the voice never reports back)."""
+        return int((2.0 + len(text) / 10.0) * 1000)
+
+    def interrupt_speech(self) -> None:
+        """Click on the neural face: stop talking now."""
+        self._speaker.stop()
+        if self._awaiting_speech_end:
+            self._finish_voice_turn()
+
+    def _finish_voice_turn(self) -> None:
+        self._speech_timer.stop()
+        was_voice = self._voice_turn or self._awaiting_speech_end
+        self._voice_turn = False
+        self._awaiting_speech_end = False
+        if was_voice:
+            self.voice_turn_finished.emit()
+
+    def set_voice_level(self, level: float) -> None:
+        """Microphone level while waiting/listening (0..1)."""
+        if not self._speaking:
+            self.neural.set_level(level)
 
     def show_listening(self, level: float = 0.0) -> None:
         """Called by the voice input: the microphone is open (level 0..1 drives the animation)."""
@@ -258,6 +292,21 @@ class MainWindow(QMainWindow):
         self._set_busy(True, "Sto pensando...")
         self._runner.run(lambda: self._chat.send(text), self._on_turn, self._on_error)
 
+    def submit_voice(self, text: str) -> None:
+        """A command recognised from the microphone: handled like typed text, but answered aloud."""
+        if self._busy or not self._is_configured():
+            self.voice_turn_finished.emit()
+            return
+        self._voice_turn = True
+        self.add("user", text)
+        self.caption.setText(_caption_text(text))
+        self._set_busy(True, "Sto pensando...")
+        self._runner.run(
+            lambda: self._chat.send(text, "voice"),
+            lambda t: self._on_turn(t, speak=True),
+            self._on_error,
+        )
+
     def request_briefing(self) -> None:
         if self._busy or not self._is_configured():
             return
@@ -281,8 +330,16 @@ class MainWindow(QMainWindow):
             return
         self._set_busy(False)
         self.add("assistant", turn.text)
-        if speak and self._read_aloud():
+        spoken = speak and (self._voice_turn or self._read_aloud())
+        if spoken:
             self._speaker.speak(turn.text)
+        if self._voice_turn:
+            # Listen again only after the voice has finished (otherwise it would hear itself).
+            self._awaiting_speech_end = spoken
+            if spoken:
+                self._speech_timer.start(self._speech_safety_ms(turn.text))
+            else:
+                self._finish_voice_turn()
         self.input.setFocus()
 
     def _ask_approval(self, approval: Approval, speak: bool) -> None:
@@ -300,6 +357,7 @@ class MainWindow(QMainWindow):
 
     def _on_error(self, error: Exception) -> None:
         self._set_busy(False)
+        self._finish_voice_turn()
         message = (
             error.message if isinstance(error, ApiError) else f"Qualcosa è andato storto: {error}"
         )

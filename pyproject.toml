@@ -43,6 +43,12 @@ desktop = [
   "platformdirs>=4.0",
   "tzlocal>=5.0",
   "pyinstaller>=6.0",
+  # voice: local wake word + speech recognition + microphone
+  "faster-whisper>=1.0",
+  "openwakeword>=0.6",
+  "onnxruntime>=1.17",
+  "sounddevice>=0.4",
+  "numpy>=1.26",
 ]
 
 [project.scripts]
@@ -77,6 +83,10 @@ strict = true
 plugins = ["pydantic.mypy"]
 mypy_path = "src"
 packages = ["gsoi_assistant", "gsoi_desktop"]
+
+[[tool.mypy.overrides]]
+module = ["openwakeword", "openwakeword.*", "sounddevice", "faster_whisper", "faster_whisper.*", "ctranslate2", "tzlocal"]
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
