@@ -88,12 +88,12 @@ def imap() -> FakeImap:
 def mail(gcontainer: Container, imap: FakeImap, monkeypatch: pytest.MonkeyPatch):  # type: ignore[no-untyped-def]
     FakeSmtp.sent = []
 
-    def fake_login(account: MailAccount) -> FakeSmtp:
+    def fake_open(account: MailAccount) -> tuple[FakeSmtp, int, str]:
         if account.password == "sbagliata":
             raise ToolError("Il server di invio ha rifiutato l'accesso")
-        return FakeSmtp()
+        return FakeSmtp(), account.smtp_port, account.smtp_security
 
-    monkeypatch.setattr(mail_client, "smtp_login", fake_login)
+    monkeypatch.setattr(mail_client, "smtp_open", fake_open)
 
     def connect(account: MailAccount) -> FakeImap:
         if account.password == "sbagliata":
@@ -284,3 +284,84 @@ async def test_briefing_counts_unread_in_other_accounts(gcontainer: Container, m
     r = await run_tool(gcontainer, "briefing.today", {})
     payload = json.loads(r.content[r.content.index("{") : r.content.rindex("}") + 1])
     assert payload["other_accounts_unread"] == [{"account": "Tiscali", "unread_last_2_days": 2}]
+
+
+class ScriptedSmtp:
+    """Stands in for smtplib to test the choice of port and security."""
+
+    def __init__(self, working: tuple[int, str] | None, auth_ok: bool = True) -> None:
+        self.working, self.auth_ok = working, auth_ok
+        self.tried: list[tuple[int, str]] = []
+
+    def connect(self, host: str, port: int, security: str) -> Any:
+        import ssl
+
+        self.tried.append((port, security))
+        if (port, security) != self.working:
+            raise ssl.SSLError("[SSL: SSLV3_ALERT_HANDSHAKE_FAILURE] handshake failure")
+        outer = self
+
+        class Server:
+            def login(self, user: str, password: str) -> None:
+                if not outer.auth_ok:
+                    import smtplib
+
+                    raise smtplib.SMTPAuthenticationError(535, b"bad credentials")
+
+            def close(self) -> None:
+                pass
+
+        return Server()
+
+
+def _account(port: int = 465, security: str = "ssl") -> MailAccount:
+    return MailAccount(
+        id="a1",
+        label="Tiscali",
+        address="me@tiscali.it",
+        username="me@tiscali.it",
+        password="p",
+        imap_host="imap.tiscali.it",
+        smtp_host="smtp.tiscali.it",
+        smtp_port=port,
+        smtp_security=security,
+    )
+
+
+def test_a_failing_secure_port_falls_back_to_the_other_standard_way(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake = ScriptedSmtp(working=(587, "starttls"))
+    monkeypatch.setattr(mail_client, "_smtp_connect", fake.connect)
+    _, port, security = mail_client.smtp_open(_account())
+    assert (port, security) == (587, "starttls") and fake.tried == [(465, "ssl"), (587, "starttls")]
+
+
+def test_when_nothing_works_the_error_lists_what_was_tried(monkeypatch: pytest.MonkeyPatch) -> None:
+    fake = ScriptedSmtp(working=None)
+    monkeypatch.setattr(mail_client, "_smtp_connect", fake.connect)
+    with pytest.raises(ToolError) as err:
+        mail_client.smtp_open(_account())
+    assert "465 (SSL)" in str(err.value) and "587 (STARTTLS)" in str(err.value)
+
+
+def test_a_wrong_password_stops_at_the_first_server_that_answers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake = ScriptedSmtp(working=(465, "ssl"), auth_ok=False)
+    monkeypatch.setattr(mail_client, "_smtp_connect", fake.connect)
+    with pytest.raises(ToolError, match="rifiutato l'accesso"):
+        mail_client.smtp_open(_account())
+    assert fake.tried == [(465, "ssl")]
+
+
+async def test_the_working_port_is_remembered_when_the_account_is_added(
+    gcontainer: Container, imap: FakeImap, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fake = ScriptedSmtp(working=(587, "starttls"))
+    monkeypatch.setattr(mail_client, "_smtp_connect", fake.connect)
+    gcontainer.mail.client = MailClient(connect=lambda account: imap)
+    acct = await gcontainer.mail.add("owner", address="me@tiscali.it", password="p")
+    assert (acct.smtp_port, acct.smtp_security) == (587, "starttls")
+    stored = (await gcontainer.mail.list("owner"))[0]
+    assert (stored.smtp_port, stored.smtp_security) == (587, "starttls")

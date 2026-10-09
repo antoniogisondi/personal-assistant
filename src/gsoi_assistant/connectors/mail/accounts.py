@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 import uuid
+from dataclasses import replace
 
 from gsoi_assistant.connectors.mail.client import MailAccount, MailClient
 from gsoi_assistant.connectors.mail.presets import preset_for
@@ -103,7 +104,8 @@ class MailAccounts:
             smtp_port=smtp_port or (preset.smtp_port if preset else 465),
             smtp_security=security,
         )
-        await self.client.test(account)  # never store credentials that do not work
+        port, security_used = await self.client.test(account)  # never store what does not work
+        account = replace(account, smtp_port=port, smtp_security=security_used)
         await self._store.save(
             models.MailAccount(
                 id=account.id,

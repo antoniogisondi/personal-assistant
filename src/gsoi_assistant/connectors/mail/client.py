@@ -208,27 +208,67 @@ def build_message(
     return msg
 
 
-def smtp_login(account: MailAccount) -> smtplib.SMTP:
+def _smtp_connect(host: str, port: int, security: str) -> smtplib.SMTP:
+    if security == "ssl":
+        return smtplib.SMTP_SSL(host, port, context=_tls(), timeout=TIMEOUT)
+    server = smtplib.SMTP(host, port, timeout=TIMEOUT)
     try:
-        if account.smtp_security == "ssl":
-            server: smtplib.SMTP = smtplib.SMTP_SSL(
-                account.smtp_host, account.smtp_port, context=_tls(), timeout=TIMEOUT
-            )
-        else:
-            server = smtplib.SMTP(account.smtp_host, account.smtp_port, timeout=TIMEOUT)
-            server.starttls(context=_tls())
-    except (OSError, smtplib.SMTPException) as exc:
-        raise ToolError(
-            f"Non riesco a collegarmi al server di invio {account.smtp_host}: {exc}"
-        ) from exc
-    try:
-        server.login(account.username, account.password)
-    except smtplib.SMTPException as exc:
+        server.starttls(context=_tls())
+    except Exception:
         server.close()
-        raise ToolError(
-            "Il server di invio ha rifiutato l'accesso: controlla indirizzo e password."
-        ) from exc
+        raise
     return server
+
+
+def _smtp_candidates(account: MailAccount) -> list[tuple[int, str]]:
+    """The configured way first, then the two standard ones (providers differ and change)."""
+    first = (account.smtp_port, account.smtp_security)
+    return [first, *[c for c in ((465, "ssl"), (587, "starttls")) if c != first]]
+
+
+def smtp_open(account: MailAccount) -> tuple[smtplib.SMTP, int, str]:
+    """Connect and log in to the outgoing server. Returns the connection and the port and
+    security that worked. A rejected password stops at once: other ports would reject it too."""
+    problems: list[str] = []
+    for port, security in _smtp_candidates(account):
+        label = f"{port} ({'SSL' if security == 'ssl' else 'STARTTLS'})"
+        try:
+            server = _smtp_connect(account.smtp_host, port, security)
+        except (OSError, smtplib.SMTPException) as exc:  # includes ssl.SSLError
+            problems.append(f"{label}: {_short(exc)}")
+            continue
+        try:
+            server.login(account.username, account.password)
+        except smtplib.SMTPAuthenticationError as exc:
+            server.close()
+            raise ToolError(
+                "Il server di invio ha rifiutato l'accesso: controlla indirizzo e password."
+            ) from exc
+        except (OSError, smtplib.SMTPException) as exc:
+            server.close()
+            problems.append(f"{label}: {_short(exc)}")
+            continue
+        return server, port, security
+    hint = ""
+    if any(
+        m in p for p in problems for m in ("HANDSHAKE_FAILURE", "UNSUPPORTED_PROTOCOL", "VERSION")
+    ):
+        hint = (
+            " Il server sembra usare un protocollo di sicurezza datato (TLS 1.0/1.1) che l'app "
+            "non accetta per la tua sicurezza: controlla sul sito del provider i server di invio."
+        )
+    raise ToolError(
+        f"Non riesco a collegarmi al server di invio {account.smtp_host}. "
+        "Provato: " + "; ".join(problems) + "." + hint
+    )
+
+
+def _short(exc: Exception) -> str:
+    return " ".join(str(exc).split())[:120]
+
+
+def smtp_login(account: MailAccount) -> smtplib.SMTP:
+    return smtp_open(account)[0]
 
 
 class MailClient:
@@ -292,11 +332,14 @@ class MailClient:
 
         return await asyncio.to_thread(work)
 
-    async def test(self, account: MailAccount) -> None:
-        """Log in to both servers (raises ToolError with a readable reason)."""
+    async def test(self, account: MailAccount) -> tuple[int, str]:
+        """Log in to both servers (raises ToolError with a readable reason). Returns the port and
+        security of the outgoing server that actually worked."""
 
-        def work() -> None:
+        def work() -> tuple[int, str]:
             _quiet_logout(self._connect(account))
-            smtp_login(account).close()
+            server, port, security = smtp_open(account)
+            server.close()
+            return port, security
 
-        await asyncio.to_thread(work)
+        return await asyncio.to_thread(work)
