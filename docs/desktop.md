@@ -184,6 +184,6 @@ circa mezzo secondo.
 
 ### Se una casella non si collega
 
-`gsoi-desktop --mail-diag smtp.tuoprovider.it` mostra quali porte rispondono e quali versioni di
+`.venv\Scripts\python -m gsoi_desktop --mail-diag smtp.tuoprovider.it` (da PowerShell, nella cartella del progetto; `gsoi-desktop` da solo non scrive nulla nel terminale) mostra quali porte rispondono e quali versioni di
 TLS accetta il server di invio (non invia nulla e non usa password). Serve a distinguere una porta
 chiusa dal router o dal provider da un server con sicurezza datata.
