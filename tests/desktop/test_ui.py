@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from typing import Any
 
 import pytest
 
@@ -251,6 +252,9 @@ class FakeController:
 
     def google_state(self) -> GoogleState:
         return self.state
+
+    def mail_accounts(self) -> list[Any]:
+        return []
 
     def google_connect_url(self) -> str:
         return self.url

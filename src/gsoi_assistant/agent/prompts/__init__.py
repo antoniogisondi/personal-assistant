@@ -33,7 +33,9 @@ BRIEFING_REQUEST = (
     "Prepara il mio riepilogo della giornata. Chiama prima lo strumento briefing.today e usa SOLO "
     'i suoi dati, con i numeri esatti. Inizia salutandomi con "{greeting}, {address}", poi dimmi '
     "quanti impegni ho oggi (con orari e titoli dei primi), quante email non lette ho ricevute "
-    "nelle ultime 24 ore e quali sembrano importanti, e quante attività aperte ho. Se una fonte "
+    "nelle ultime 24 ore e quali sembrano importanti (se other_accounts_unread non è vuoto, "
+    "aggiungi le email non lette degli altri account, per nome), e quante attività aperte ho. "
+    "Se una fonte "
     "non è disponibile dillo in una frase. Chiudi chiedendo se voglio che mi occupi di qualcosa. "
     "Parla in modo naturale e breve."
 )

@@ -155,3 +155,21 @@ vicino all'orologio e nella conversazione, e viene detta a voce, tranne nella fa
 la posta già presente, quindi collegare l'account non provoca una valanga di avvisi. Ogni elemento
 è annunciato una sola volta. Il testo delle email non viene mai passato al modello da questa
 funzione: serve solo a mostrare e leggere l'avviso. Si regola da Impostazioni.
+
+## Altre caselle email (Tiscali, Libero, Aruba...) e Outlook
+
+Da **Servizi → Aggiungi casella...** inserisci indirizzo e password: per Tiscali, Libero, Virgilio,
+Aruba, Yahoo e iCloud i server sono già noti (per gli altri provider c'è l'opzione per indicarli).
+L'app prova ad accedere prima di salvare, e la password resta cifrata sul PC (non viene mai
+mostrata né scritta nel log). Se l'account usa la verifica in due passaggi serve una «password per
+app» creata dal provider.
+
+Poi puoi dire, ad esempio, «leggi le email non lette di Tiscali» o «scrivi a Marco da Tiscali»:
+la lettura non segna i messaggi come letti, l'invio chiede sempre il tuo consenso con destinatari,
+oggetto e testo. Le nuove email di queste caselle compaiono anche negli avvisi e nel riepilogo
+della giornata. Nota: i messaggi inviati così non sempre compaiono nella cartella «Posta inviata»
+del provider.
+
+Se preferisci scrivere dal tuo programma di posta (Outlook), chiedi «prepara una email a Marco
+con Outlook»: l'assistente apre una nuova bozza già compilata nel programma di posta predefinito
+di Windows e **tu premi Invia**; l'assistente non invia nulla in quel caso.

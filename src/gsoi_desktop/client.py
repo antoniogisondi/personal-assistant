@@ -77,6 +77,15 @@ class ApiClient:
                 0, "Non riesco a contattare il servizio interno dell'assistente."
             ) from exc
 
+    def mail_accounts(self) -> list[dict[str, Any]]:
+        return self._call("GET", "/v1/mail/accounts")  # type: ignore[no-any-return]
+
+    def mail_add(self, body: dict[str, Any]) -> dict[str, Any]:
+        return self._call("POST", "/v1/mail/accounts", body)  # type: ignore[no-any-return]
+
+    def mail_remove(self, account_id: str) -> None:
+        self._call("DELETE", f"/v1/mail/accounts/{account_id}")
+
     def check_alerts(self, lead_minutes: int) -> dict[str, Any]:
         return self._call("POST", "/v1/alerts/check", {"lead_minutes": lead_minutes})  # type: ignore[no-any-return]
 

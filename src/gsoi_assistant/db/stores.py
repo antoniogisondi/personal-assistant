@@ -464,3 +464,37 @@ class SeenStore:
     async def prune(self, older_than: datetime) -> None:
         async with self._sf() as s, s.begin():
             await s.execute(delete(models.SeenItem).where(models.SeenItem.seen_at < older_than))
+
+
+class MailAccountStore:
+    def __init__(self, sf: SessionFactory) -> None:
+        self._sf = sf
+
+    async def list(self, user_id: str) -> list[models.MailAccount]:
+        async with self._sf() as s:
+            rows = await s.execute(
+                select(models.MailAccount)
+                .where(models.MailAccount.user_id == user_id)
+                .order_by(models.MailAccount.created_at)
+            )
+            return list(rows.scalars())
+
+    async def save(self, row: models.MailAccount) -> None:
+        """Insert, or replace the account with the same address."""
+        async with self._sf() as s, s.begin():
+            await s.execute(
+                delete(models.MailAccount).where(
+                    models.MailAccount.user_id == row.user_id,
+                    models.MailAccount.address == row.address,
+                )
+            )
+            s.add(row)
+
+    async def delete(self, user_id: str, account_id: str) -> bool:
+        async with self._sf() as s, s.begin():
+            result = await s.execute(
+                delete(models.MailAccount).where(
+                    models.MailAccount.user_id == user_id, models.MailAccount.id == account_id
+                )
+            )
+            return bool(result.rowcount)  # type: ignore[attr-defined]

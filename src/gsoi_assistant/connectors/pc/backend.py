@@ -39,6 +39,7 @@ class PcBackend(Protocol):
     def launch(self, app: AppEntry) -> None: ...
     def open_url(self, url: str, browser: str | None = None) -> None: ...
     def open_folder(self, which: str) -> None: ...
+    def compose_mail(self, mailto: str) -> None: ...
     def media(self, action: str) -> None: ...
 
 
@@ -142,6 +143,11 @@ class WindowsBackend:
             webbrowser.open(url, new=2)  # the default browser
         else:
             subprocess.Popen([exe, url])  # noqa: S603  # nosec B603  # url is http(s), no shell
+
+    def compose_mail(self, mailto: str) -> None:
+        if not mailto.startswith("mailto:"):
+            raise ValueError(mailto)
+        os.startfile(mailto)  # type: ignore[attr-defined]  # noqa: S606  # nosec B606
 
     def open_folder(self, which: str) -> None:
         if which not in FOLDERS:

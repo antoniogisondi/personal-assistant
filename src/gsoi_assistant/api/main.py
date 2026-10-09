@@ -13,7 +13,7 @@ from fastapi.responses import JSONResponse, RedirectResponse
 from gsoi_assistant import __version__
 from gsoi_assistant.api import setup_page
 from gsoi_assistant.api.container import Container, build_container
-from gsoi_assistant.api.routers import alerts, chat, connections, health
+from gsoi_assistant.api.routers import alerts, chat, connections, health, mail
 from gsoi_assistant.config.settings import Settings, get_settings
 from gsoi_assistant.core.errors import (
     BadRequestError,
@@ -107,6 +107,7 @@ def create_app(settings: Settings | None = None, container: Container | None = N
     app.include_router(chat.router)
     app.include_router(connections.router)
     app.include_router(alerts.router)
+    app.include_router(mail.router)
     app.include_router(setup_page.router)
     return app
 

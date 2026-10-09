@@ -24,6 +24,9 @@ class Api(Protocol):
     ) -> None: ...
     def briefing(self, channel: str = ...) -> dict[str, Any]: ...
     def check_alerts(self, lead_minutes: int) -> dict[str, Any]: ...
+    def mail_accounts(self) -> list[dict[str, Any]]: ...
+    def mail_add(self, body: dict[str, Any]) -> dict[str, Any]: ...
+    def mail_remove(self, account_id: str) -> None: ...
     def decide(
         self, approval_id: str, approve: bool, confirm_tool: str | None
     ) -> dict[str, Any]: ...
@@ -49,6 +52,13 @@ class Turn:
     text: str = ""
     approval: Approval | None = None
     cost_usd: float = 0.0
+
+
+@dataclass(frozen=True)
+class MailAccountInfo:
+    id: str
+    label: str
+    address: str
 
 
 @dataclass(frozen=True)
@@ -154,6 +164,21 @@ class AssistantController:
                     scopes=tuple(c.get("scopes", [])),
                 )
         return GoogleState(available=False, connected=False)
+
+    def mail_accounts(self) -> list[MailAccountInfo]:
+        return [
+            MailAccountInfo(a["id"], a["label"], a["address"]) for a in self._api.mail_accounts()
+        ]
+
+    def mail_add(
+        self, address: str, password: str, servers: dict[str, Any] | None = None
+    ) -> MailAccountInfo:
+        body: dict[str, Any] = {"address": address, "password": password, **(servers or {})}
+        a = self._api.mail_add(body)
+        return MailAccountInfo(a["id"], a["label"], a["address"])
+
+    def mail_remove(self, account_id: str) -> None:
+        self._api.mail_remove(account_id)
 
     def google_connect_url(self) -> str:
         return self._api.google_start()

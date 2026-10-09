@@ -213,3 +213,23 @@ class SeenItem(Base):
     kind: Mapped[str] = mapped_column(String(16), primary_key=True)
     key: Mapped[str] = mapped_column(String(200), primary_key=True)
     seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+class MailAccount(Base):
+    """An email account reached with IMAP/SMTP. The password is encrypted (Fernet), never plain."""
+
+    __tablename__ = "mail_accounts"
+    __table_args__ = (UniqueConstraint("user_id", "address", name="uq_mail_user_address"),)
+
+    id: Mapped[str] = mapped_column(String(16), primary_key=True)
+    user_id: Mapped[str] = mapped_column(String(64), index=True)
+    label: Mapped[str] = mapped_column(String(60))
+    address: Mapped[str] = mapped_column(String(254))
+    username: Mapped[str] = mapped_column(String(254))
+    imap_host: Mapped[str] = mapped_column(String(253))
+    imap_port: Mapped[int] = mapped_column(Integer)
+    smtp_host: Mapped[str] = mapped_column(String(253))
+    smtp_port: Mapped[int] = mapped_column(Integer)
+    smtp_security: Mapped[str] = mapped_column(String(8))  # ssl | starttls
+    password_enc: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)

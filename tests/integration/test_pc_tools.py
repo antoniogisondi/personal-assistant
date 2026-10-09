@@ -23,6 +23,7 @@ class FakePc:
         self.browsers: list[str | None] = []
         self.folders: list[str] = []
         self.keys: list[str] = []
+        self.mailto: list[str] = []
         names = ("Google Chrome", "Microsoft Edge", "Microsoft Word", "Spotify", "Calcolatrice")
         self._apps = [AppEntry(n, f"shell:AppsFolder\\{n.replace(' ', '')}") for n in names]
 
@@ -41,6 +42,9 @@ class FakePc:
 
     def media(self, action: str) -> None:
         self.keys.append(action)
+
+    def compose_mail(self, mailto: str) -> None:
+        self.mailto.append(mailto)
 
 
 @pytest.fixture
@@ -170,3 +174,23 @@ async def test_a_url_can_be_opened_in_a_chosen_browser(pc_container) -> None:  #
     )
     bad = await run(c, "pc.open_url", {"url": "https://x.it", "browser": "netscape"})
     assert bad.status == "error"
+
+
+async def test_compose_email_opens_a_draft_in_the_mail_program_and_sends_nothing(
+    pc_container,
+) -> None:  # type: ignore[no-untyped-def]
+    c, pc = pc_container
+    r = await run(
+        c,
+        "pc.compose_email",
+        {"to": ["marco@x.it"], "subject": "Ciao & grazie", "body": "Riga 1\nRiga 2"},
+    )
+    assert r.status == "ok"
+    assert pc.mailto == ["mailto:marco@x.it?subject=Ciao%20%26%20grazie&body=Riga%201%0ARiga%202"]
+    assert (await run(c, "pc.compose_email", {"to": ["not an address"]})).status == "error"
+    assert (
+        await run(c, "pc.compose_email", {"to": ["a@x.it"], "subject": "a\nBcc: x@y.it"})
+    ).status == "error"
+    long = await run(c, "pc.compose_email", {"to": ["a@x.it"], "body": "\u00e8" * 1200})
+    assert long.status == "error" and "too long" in long.content
+    assert len(pc.mailto) == 1

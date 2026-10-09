@@ -20,6 +20,9 @@ from gsoi_assistant.connectors.google.auth import GoogleAuth
 from gsoi_assistant.connectors.google.calendar import CalendarClient, make_calendar_tools
 from gsoi_assistant.connectors.google.gmail import GmailClient, make_gmail_tools
 from gsoi_assistant.connectors.google.hub import GoogleHub, load_bundled_app
+from gsoi_assistant.connectors.mail.accounts import MailAccounts
+from gsoi_assistant.connectors.mail.client import MailClient
+from gsoi_assistant.connectors.mail.tools import make_mail_tools
 from gsoi_assistant.connectors.watch import Watcher
 from gsoi_assistant.db.base import make_engine, make_session_factory
 from gsoi_assistant.db.repositories import SqlRepository
@@ -27,6 +30,7 @@ from gsoi_assistant.db.stores import (
     ApprovalStore,
     AuditStore,
     ConnectorConfigStore,
+    MailAccountStore,
     NoteStore,
     OAuthStore,
     SeenStore,
@@ -64,6 +68,7 @@ class Container:
     hub: GoogleHub
     google_api: GoogleApi
     watcher: Watcher
+    mail: MailAccounts
 
     @property
     def google(self) -> GoogleAuth | None:
@@ -125,13 +130,18 @@ def build_container(
     # The Google tools are always registered; they report "not set up" until /setup is completed.
     google_api = GoogleApi(hub)
     gmail, calendar = GmailClient(google_api), CalendarClient(google_api, tz)
-    connector_tools: list[AnyTool] = [*make_gmail_tools(gmail), *make_calendar_tools(calendar)]
+    mail = MailAccounts(MailAccountStore(sf), cipher, MailClient())
+    connector_tools: list[AnyTool] = [
+        *make_gmail_tools(gmail),
+        *make_calendar_tools(calendar),
+        *make_mail_tools(mail),
+    ]
 
     registry = ToolRegistry(
         [
             *BUILTIN_TOOLS,
             *connector_tools,
-            make_briefing_tool(gmail, calendar, tz),
+            make_briefing_tool(gmail, calendar, tz, mail),
             *(extra_tools or []),
         ]
     )
@@ -187,5 +197,6 @@ def build_container(
         agent,
         hub,
         google_api,
-        Watcher(gmail, calendar, SeenStore(sf), tz),
+        Watcher(gmail, calendar, SeenStore(sf), tz, mail),
+        mail,
     )

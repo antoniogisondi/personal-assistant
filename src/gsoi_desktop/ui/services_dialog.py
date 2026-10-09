@@ -8,6 +8,7 @@ from PySide6.QtWidgets import QDialog, QHBoxLayout, QLabel, QPushButton, QVBoxLa
 
 from gsoi_desktop.controller import AssistantController, GoogleState
 from gsoi_desktop.ui.async_call import AsyncRunner
+from gsoi_desktop.ui.mail_panel import MailPanel
 
 POLL_MS = 2000
 POLL_LIMIT = 150  # about five minutes
@@ -53,6 +54,9 @@ class ServicesDialog(QDialog):
             layout.addWidget(w)
         layout.addLayout(row)
         layout.addWidget(self.message)
+        self.mail = MailPanel(controller, runner, self)
+        layout.addSpacing(10)
+        layout.addWidget(self.mail)
 
         self._timer = QTimer(self)
         self._timer.setInterval(POLL_MS)

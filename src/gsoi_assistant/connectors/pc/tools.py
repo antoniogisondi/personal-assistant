@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 from typing import Literal
+from urllib.parse import quote
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
+from gsoi_assistant.connectors.google.gmail import _check_addresses
 from gsoi_assistant.connectors.pc.backend import FOLDERS, MEDIA_ACTIONS, PcBackend
 from gsoi_assistant.connectors.pc.matching import UnsafeUrlError, check_url, clean_name, resolve
 from gsoi_assistant.core.errors import ToolError
@@ -45,6 +47,24 @@ class OpenUrlIn(BaseModel):
 
 class OpenedOut(BaseModel):
     opened: str
+
+
+class ComposeIn(BaseModel):
+    to: list[str] = Field(min_length=1, max_length=5)
+    subject: str = Field(default="", max_length=200)
+    body: str = Field(default="", max_length=1200)
+
+    @field_validator("to")
+    @classmethod
+    def _addresses(cls, v: list[str]) -> list[str]:
+        return _check_addresses(v)
+
+    @field_validator("subject")
+    @classmethod
+    def _one_line(cls, v: str) -> str:
+        if "\n" in v or "\r" in v:
+            raise ValueError("subject must be a single line")
+        return v
 
 
 class OpenFolderIn(BaseModel):
@@ -90,6 +110,22 @@ def make_pc_tools(backend: PcBackend) -> list[AnyTool]:
         backend.open_url(url, args.browser)
         return OpenedOut(opened=url)
 
+    async def compose_email(args: ComposeIn, ctx: ToolContext) -> OpenedOut:
+        query = "&".join(
+            f"{k}={quote(v, safe='')}"
+            for k, v in (("subject", args.subject), ("body", args.body))
+            if v
+        )
+        mailto = (
+            "mailto:"
+            + ",".join(quote(a, safe="@") for a in args.to)
+            + (f"?{query}" if query else "")
+        )
+        if len(mailto) > 1800:
+            raise ToolError("The text is too long for a draft window: shorten it or send directly.")
+        backend.compose_mail(mailto)
+        return OpenedOut(opened="draft in the default mail program")
+
     async def open_folder(args: OpenFolderIn, ctx: ToolContext) -> OpenedOut:
         backend.open_folder(args.folder)
         return OpenedOut(opened=args.folder)
@@ -132,6 +168,19 @@ def make_pc_tools(backend: PcBackend) -> list[AnyTool]:
             risk=Risk.WRITE_LOCAL,
             output_data_class=DataClass.PUBLIC,
             summarize=lambda a: f"Open {a.url} in {a.browser or 'the browser'}",
+        ),
+        ToolSpec(
+            name="pc.compose_email",
+            description=(
+                "Open a new-message window in the user's default mail program (e.g. Outlook), "
+                "already filled in. The user reviews it and presses Send themselves: nothing is "
+                "sent by this tool. Use it when the user wants to write from their mail program."
+            ),
+            input_model=ComposeIn,
+            handler=compose_email,
+            risk=Risk.WRITE_LOCAL,
+            output_data_class=DataClass.PUBLIC,
+            summarize=lambda a: f"Open a draft to {', '.join(a.to)} in the mail program",
         ),
         ToolSpec(
             name="pc.open_folder",

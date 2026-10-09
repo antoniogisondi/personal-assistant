@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, SecretStr
 
 from gsoi_assistant.core.events import UsageInfo
 from gsoi_assistant.core.types import DataClass
@@ -127,3 +127,22 @@ class AlertOut(BaseModel):
 class AlertsOut(BaseModel):
     alerts: list[AlertOut]
     unavailable: list[str]
+
+
+class MailAccountBody(BaseModel):
+    address: str = Field(min_length=5, max_length=254)
+    password: SecretStr = Field(description="Account password (or an app password).")
+    label: str | None = Field(default=None, max_length=60)
+    imap_host: str | None = Field(default=None, max_length=253)
+    smtp_host: str | None = Field(default=None, max_length=253)
+    imap_port: int | None = Field(default=None, ge=1, le=65535)
+    smtp_port: int | None = Field(default=None, ge=1, le=65535)
+    smtp_security: str | None = Field(default=None, pattern="^(ssl|starttls)$")
+
+
+class MailAccountOut(BaseModel):
+    id: str
+    label: str
+    address: str
+    imap_host: str
+    smtp_host: str

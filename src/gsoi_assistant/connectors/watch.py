@@ -18,6 +18,8 @@ import structlog
 
 from gsoi_assistant.connectors.google.calendar import CalendarClient
 from gsoi_assistant.connectors.google.gmail import EmailSummary, GmailClient
+from gsoi_assistant.connectors.mail.accounts import MailAccounts
+from gsoi_assistant.connectors.mail.client import MailAccount, MailSummary
 from gsoi_assistant.core.errors import ToolError
 from gsoi_assistant.db.stores import SeenStore, utcnow
 
@@ -95,7 +97,9 @@ class Watcher:
         calendar: CalendarClient | None,
         seen: SeenStore,
         tz: ZoneInfo,
+        mail: MailAccounts | None = None,
     ) -> None:
+        self._mail = mail
         self._gmail = gmail
         self._calendar = calendar
         self._seen = seen
@@ -111,6 +115,10 @@ class Watcher:
             alerts += await self._new_mail(user_id)
         except ToolError as exc:
             unavailable.append(f"email: {exc}")
+        try:
+            alerts += await self._other_mailboxes(user_id, unavailable)
+        except ToolError as exc:
+            unavailable.append(f"mail: {exc}")
         try:
             alerts += await self._upcoming(user_id, lead_minutes, now)
         except ToolError as exc:
@@ -135,6 +143,42 @@ class Watcher:
         if len(new) > MAX_ANNOUNCED_PER_CHECK:
             log.info("watch_many_new_emails", count=len(new))
         return [email_alert(m) for m in new[:MAX_ANNOUNCED_PER_CHECK]]
+
+    async def _other_mailboxes(self, user_id: str, unavailable: list[str]) -> list[Alert]:
+        if self._mail is None:
+            return []
+        alerts: list[Alert] = []
+        for account in await self._mail.list(user_id):
+            try:
+                alerts += await self._new_in_account(user_id, account)
+            except ToolError as exc:  # one broken account must not silence the others
+                unavailable.append(f"{account.label}: {exc}")
+        return alerts
+
+    async def _new_in_account(self, user_id: str, account: MailAccount) -> list[Alert]:
+        assert self._mail is not None  # nosec B101
+        kind = f"m{account.id}"
+        found = await self._mail.client.search(account, unread_only=True, since_days=2, limit=15)
+        keys = [m.uid for m in found]
+        if not await self._seen.has_any(user_id, kind):
+            await self._seen.add(user_id, kind, [*keys, BASELINE])
+            return []
+        fresh = set(await self._seen.new_keys(user_id, kind, keys))
+        new = [m for m in found if m.uid in fresh]
+        await self._seen.add(user_id, kind, [m.uid for m in new])
+        return [self._account_alert(account, m) for m in new[:MAX_ANNOUNCED_PER_CHECK]]
+
+    @staticmethod
+    def _account_alert(account: MailAccount, mail: MailSummary) -> Alert:
+        who = sender_name(mail.sender)
+        subject = clean(mail.subject, 100)
+        return Alert(
+            kind="email",
+            key=f"{account.id}:{mail.uid}",
+            title=f"Nuova email da {who} ({account.label})",
+            text=subject,
+            spoken=f"Nuova email su {account.label} da {who}: {subject}.",
+        )
 
     async def _upcoming(self, user_id: str, lead_minutes: int, now: datetime) -> list[Alert]:
         if self._calendar is None:

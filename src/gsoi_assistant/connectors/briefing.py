@@ -15,6 +15,7 @@ from pydantic import BaseModel
 
 from gsoi_assistant.connectors.google.calendar import CalendarClient, EventOut
 from gsoi_assistant.connectors.google.gmail import EmailSummary, GmailClient
+from gsoi_assistant.connectors.mail.accounts import MailAccounts
 from gsoi_assistant.core.errors import ToolError
 from gsoi_assistant.core.types import Risk
 from gsoi_assistant.tools.base import ToolContext, ToolSpec
@@ -34,6 +35,11 @@ class TaskBrief(BaseModel):
     due: str | None
 
 
+class AccountUnread(BaseModel):
+    account: str
+    unread_last_2_days: int
+
+
 class BriefingOut(BaseModel):
     now: str
     weekday: str
@@ -41,13 +47,17 @@ class BriefingOut(BaseModel):
     unread_emails_last_24h: int | None
     unread_count_is_lower_bound: bool
     important_emails: list[EmailSummary] | None
+    other_accounts_unread: list[AccountUnread]  # non-Gmail mailboxes (Tiscali...)
     open_tasks: list[TaskBrief]
     open_tasks_count: int
     unavailable: list[str]
 
 
 def make_briefing_tool(
-    gmail: GmailClient | None, calendar: CalendarClient | None, tz: ZoneInfo
+    gmail: GmailClient | None,
+    calendar: CalendarClient | None,
+    tz: ZoneInfo,
+    mail: MailAccounts | None = None,
 ) -> AnyTool:
     async def briefing(_: NoArgs, ctx: ToolContext) -> BriefingOut:
         now = datetime.now(tz)
@@ -80,6 +90,20 @@ def make_briefing_tool(
         else:
             unavailable.append("email: not configured")
 
+        others: list[AccountUnread] = []
+        if mail is not None:
+            for acct in await mail.list(ctx.user_id):
+                try:
+                    unread_here = await mail.client.search(
+                        acct, unread_only=True, since_days=2, limit=25
+                    )
+                    others.append(
+                        AccountUnread(account=acct.label, unread_last_2_days=len(unread_here))
+                    )
+                except ToolError as exc:
+                    log.info("briefing_mail_unavailable", reason=str(exc)[:120])
+                    unavailable.append(f"{acct.label}: {exc}")
+
         tasks = await ctx.services.tasks.list(ctx.user_id, "open", 50)
         return BriefingOut(
             now=now.isoformat(timespec="minutes"),
@@ -88,6 +112,7 @@ def make_briefing_tool(
             unread_emails_last_24h=unread,
             unread_count_is_lower_bound=lower_bound,
             important_emails=important,
+            other_accounts_unread=others,
             open_tasks=[
                 TaskBrief(title=t.title, due=t.due_at.isoformat() if t.due_at else None)
                 for t in tasks[:10]

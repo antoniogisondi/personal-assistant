@@ -134,3 +134,84 @@ def test_alert_settings_round_trip(qapp: QApplication) -> None:
 def test_lead_minutes_are_bounded(n: int) -> None:
     with pytest.raises(ValueError):
         DesktopConfig(alerts_lead_minutes=n)
+
+
+def test_mail_panel_adds_lists_and_removes_accounts(
+    qapp: QApplication, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from PySide6.QtWidgets import QDialog
+
+    from gsoi_desktop.controller import MailAccountInfo
+    from gsoi_desktop.ui import mail_panel
+    from gsoi_desktop.ui.mail_panel import AddMailDialog, MailPanel
+
+    class Ctl:
+        def __init__(self) -> None:
+            self.accounts: list[MailAccountInfo] = []
+            self.added: list[tuple[Any, ...]] = []
+            self.fail: str | None = None
+
+        def mail_accounts(self) -> list[MailAccountInfo]:
+            return list(self.accounts)
+
+        def mail_add(self, address: str, password: str, servers: dict[str, Any]) -> MailAccountInfo:
+            if self.fail:
+                raise RuntimeError(self.fail)
+            self.added.append((address, password, servers))
+            a = MailAccountInfo("id1", "Tiscali", address)
+            self.accounts.append(a)
+            return a
+
+        def mail_remove(self, account_id: str) -> None:
+            self.accounts = [a for a in self.accounts if a.id != account_id]
+
+    ctl = Ctl()
+    panel = MailPanel(ctl, AsyncRunner())  # type: ignore[arg-type]
+    wait_until(lambda: not panel.remove_button.isEnabled())
+
+    def fill(self: AddMailDialog) -> int:
+        self.address.setText("me@tiscali.it")
+        self.password.setText("segreta")
+        self._save()
+        return int(QDialog.DialogCode.Accepted)
+
+    monkeypatch.setattr(mail_panel.AddMailDialog, "exec", fill)
+    panel.add_button.click()
+    wait_until(lambda: panel.list.count() == 1)
+    assert ctl.added == [("me@tiscali.it", "segreta", {})] and "aggiunta" in panel.message.text()
+
+    panel.list.setCurrentRow(0)
+    panel.remove_button.click()
+    wait_until(lambda: panel.list.count() == 0)
+
+    ctl.fail = "Accesso rifiutato dal server di posta"
+    panel.add_button.click()
+    wait_until(lambda: "rifiutato" in panel.message.text())
+    assert panel.add_button.isEnabled()
+
+
+def test_add_dialog_needs_both_fields_and_servers_when_advanced(qapp: QApplication) -> None:
+    from gsoi_desktop.ui.mail_panel import AddMailDialog
+
+    d = AddMailDialog()
+    d.address.setText("me@azienda.it")
+    d._save()
+    assert d.result_value is None and "password" in d.error.text()
+    d.password.setText("x")
+    d.advanced.setChecked(True)
+    d._save()
+    assert d.result_value is None and "server" in d.error.text()
+    d.imap_host.setText("mail.azienda.it")
+    d.smtp_host.setText("smtp.azienda.it")
+    d.starttls.setChecked(True)
+    d._save()
+    assert d.result_value == (
+        "me@azienda.it",
+        "x",
+        {
+            "imap_host": "mail.azienda.it",
+            "smtp_host": "smtp.azienda.it",
+            "smtp_port": 587,
+            "smtp_security": "starttls",
+        },
+    )
