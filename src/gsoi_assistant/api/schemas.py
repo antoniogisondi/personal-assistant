@@ -138,6 +138,9 @@ class MailAccountBody(BaseModel):
     imap_port: int | None = Field(default=None, ge=1, le=65535)
     smtp_port: int | None = Field(default=None, ge=1, le=65535)
     smtp_security: str | None = Field(default=None, pattern="^(ssl|starttls)$")
+    smtp_legacy_tls: bool = Field(
+        default=False, description="The user agreed to TLS 1.0/1.1 for the outgoing server."
+    )
 
 
 class MailAccountOut(BaseModel):
@@ -146,3 +149,4 @@ class MailAccountOut(BaseModel):
     address: str
     imap_host: str
     smtp_host: str
+    reduced_security: bool = False

@@ -187,3 +187,10 @@ circa mezzo secondo.
 `.venv\Scripts\python -m gsoi_desktop --mail-diag smtp.tuoprovider.it` (da PowerShell, nella cartella del progetto; `gsoi-desktop` da solo non scrive nulla nel terminale) mostra quali porte rispondono e quali versioni di
 TLS accetta il server di invio (non invia nulla e non usa password). Serve a distinguere una porta
 chiusa dal router o dal provider da un server con sicurezza datata.
+
+**Server di invio con sicurezza datata (es. Tiscali):** alcuni provider accettano solo TLS 1.0/1.1
+sull'invio. Il certificato viene comunque verificato, ma la cifratura è più debole. L'app non lo
+usa mai di nascosto: se il server non offre di meglio ti spiega il rischio e chiede il permesso;
+l'opzione vale solo per l'invio di quella casella (la lettura resta protetta normalmente) e nella
+lista la casella è contrassegnata «invio con sicurezza ridotta». Se puoi, usa una password
+specifica per l'app.

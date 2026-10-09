@@ -36,6 +36,7 @@ class MailAccounts:
             smtp_host=row.smtp_host,
             smtp_port=row.smtp_port,
             smtp_security=row.smtp_security,
+            smtp_legacy_tls=bool(row.smtp_legacy_tls),
         )
 
     async def list(self, user_id: str) -> list[MailAccount]:
@@ -75,6 +76,7 @@ class MailAccounts:
         imap_port: int | None = None,
         smtp_port: int | None = None,
         smtp_security: str | None = None,
+        smtp_legacy_tls: bool = False,
     ) -> MailAccount:
         address = address.strip()
         if not _ADDRESS.match(address):
@@ -103,6 +105,7 @@ class MailAccounts:
             smtp_host=smtp_host,
             smtp_port=smtp_port or (preset.smtp_port if preset else 465),
             smtp_security=security,
+            smtp_legacy_tls=smtp_legacy_tls,
         )
         port, security_used = await self.client.test(account)  # never store what does not work
         account = replace(account, smtp_port=port, smtp_security=security_used)
@@ -118,6 +121,7 @@ class MailAccounts:
                 smtp_host=account.smtp_host,
                 smtp_port=account.smtp_port,
                 smtp_security=account.smtp_security,
+                smtp_legacy_tls=account.smtp_legacy_tls,
                 password_enc=self._cipher.encrypt_json({"password": password}),
             )
         )

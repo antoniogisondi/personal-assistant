@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any
 
 from PySide6.QtCore import Qt
@@ -12,6 +13,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QListWidget,
+    QMessageBox,
     QPushButton,
     QSpinBox,
     QVBoxLayout,
@@ -20,6 +22,8 @@ from PySide6.QtWidgets import (
 
 from gsoi_desktop.controller import AssistantController, MailAccountInfo
 from gsoi_desktop.ui.async_call import AsyncRunner
+
+LEGACY_MARKER = "protocolli di sicurezza datati"
 
 
 class AddMailDialog(QDialog):
@@ -98,11 +102,16 @@ class MailPanel(QWidget):
     """The other mailboxes (Tiscali, Libero...): list, add, remove."""
 
     def __init__(
-        self, controller: AssistantController, runner: AsyncRunner, parent: QWidget | None = None
+        self,
+        controller: AssistantController,
+        runner: AsyncRunner,
+        parent: QWidget | None = None,
+        confirm: Callable[[str], bool] | None = None,
     ) -> None:
         super().__init__(parent)
         self._controller = controller
         self._runner = runner
+        self._confirm = confirm or self._ask
         self.accounts: list[MailAccountInfo] = []
         title = QLabel("<b>Altre caselle email</b> (Tiscali, Libero, Aruba...)")
         self.list = QListWidget()
@@ -135,7 +144,10 @@ class MailPanel(QWidget):
         self.accounts = accounts
         self.list.clear()
         for a in accounts:
-            self.list.addItem(f"{a.label} — {a.address}")
+            self.list.addItem(
+                f"{a.label} — {a.address}"
+                + (" (invio con sicurezza ridotta)" if a.reduced_security else "")
+            )
         self.remove_button.setEnabled(bool(accounts))
 
     def _failed(self, error: Exception) -> None:
@@ -146,7 +158,9 @@ class MailPanel(QWidget):
         dialog = AddMailDialog(self)
         if dialog.exec() != QDialog.DialogCode.Accepted or dialog.result_value is None:
             return
-        address, password, servers = dialog.result_value
+        self._submit(*dialog.result_value)
+
+    def _submit(self, address: str, password: str, servers: dict[str, Any]) -> None:
         self.add_button.setEnabled(False)
         self.message.setText("Provo ad accedere alla casella...")
 
@@ -155,9 +169,32 @@ class MailPanel(QWidget):
             self.message.setText("Casella aggiunta: ora l'assistente può leggerla e inviare da lì.")
             self.refresh()
 
+        def failed(error: Exception) -> None:
+            if LEGACY_MARKER in str(error) and not servers.get("smtp_legacy_tls"):
+                self.add_button.setEnabled(True)
+                if self._confirm(str(error)):
+                    self._submit(address, password, {**servers, "smtp_legacy_tls": True})
+                else:
+                    self.message.setText(
+                        "Casella non aggiunta: il server di invio è troppo datato."
+                    )
+                return
+            self._failed(error)
+
         self._runner.run(
-            lambda: self._controller.mail_add(address, password, servers), done, self._failed
+            lambda: self._controller.mail_add(address, password, servers), done, failed
         )
+
+    def _ask(self, reason: str) -> bool:
+        answer = QMessageBox.question(
+            self,
+            "Server di invio datato",
+            f"{reason}\n\nSe continui, la connessione per l'INVIO usa una cifratura più debole "
+            "(solo per questa casella; la lettura resta protetta normalmente). Chi controlla la "
+            "rete potrebbe, in teoria, intercettare la password. Se puoi, usa una password "
+            "specifica per l'app e non riusare quella di altri servizi.\n\nVuoi continuare?",
+        )
+        return answer == QMessageBox.StandardButton.Yes
 
     def _remove(self) -> None:
         row = self.list.currentRow()

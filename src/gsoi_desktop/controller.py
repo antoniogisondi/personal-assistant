@@ -59,6 +59,7 @@ class MailAccountInfo:
     id: str
     label: str
     address: str
+    reduced_security: bool = False
 
 
 @dataclass(frozen=True)
@@ -167,7 +168,8 @@ class AssistantController:
 
     def mail_accounts(self) -> list[MailAccountInfo]:
         return [
-            MailAccountInfo(a["id"], a["label"], a["address"]) for a in self._api.mail_accounts()
+            MailAccountInfo(a["id"], a["label"], a["address"], bool(a.get("reduced_security")))
+            for a in self._api.mail_accounts()
         ]
 
     def mail_add(

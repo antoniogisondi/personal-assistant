@@ -289,15 +289,18 @@ async def test_briefing_counts_unread_in_other_accounts(gcontainer: Container, m
 class ScriptedSmtp:
     """Stands in for smtplib to test the choice of port and security."""
 
-    def __init__(self, working: tuple[int, str] | None, auth_ok: bool = True) -> None:
-        self.working, self.auth_ok = working, auth_ok
+    def __init__(
+        self, working: tuple[int, str] | None, auth_ok: bool = True, legacy_only: bool = False
+    ) -> None:
+        self.working, self.auth_ok, self.legacy_only = working, auth_ok, legacy_only
         self.tried: list[tuple[int, str]] = []
 
-    def connect(self, host: str, port: int, security: str) -> Any:
+    def connect(self, host: str, port: int, security: str, legacy: bool = False) -> Any:
         import ssl
 
-        self.tried.append((port, security))
-        if (port, security) != self.working:
+        if not legacy:  # a probe for outdated TLS is not a connection attempt
+            self.tried.append((port, security))
+        if (port, security) != self.working or (self.legacy_only and not legacy):
             raise ssl.SSLError("[SSL: SSLV3_ALERT_HANDSHAKE_FAILURE] handshake failure")
         outer = self
 
@@ -392,3 +395,46 @@ def test_diagnosis_reports_unreachable_ports_and_unknown_hosts(
     lines.clear()
     diagnostics.diagnose("nessun.host.it", lines.append)
     assert "non si risolve" in lines[0]
+
+
+async def test_a_server_with_only_outdated_tls_needs_the_users_consent(
+    gcontainer: Container, imap: FakeImap, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fake = ScriptedSmtp(working=(465, "ssl"), legacy_only=True)
+    monkeypatch.setattr(mail_client, "_smtp_connect", fake.connect)
+    gcontainer.mail.client = MailClient(connect=lambda account: imap)
+    with pytest.raises(mail_client.LegacyTlsRequiredError, match="protocolli di sicurezza datati"):
+        await gcontainer.mail.add("owner", address="me@tiscali.it", password="p")
+    assert await gcontainer.mail.list("owner") == []  # nothing stored without consent
+    acct = await gcontainer.mail.add(
+        "owner", address="me@tiscali.it", password="p", smtp_legacy_tls=True
+    )
+    assert acct.smtp_legacy_tls and (await gcontainer.mail.list("owner"))[0].smtp_legacy_tls
+
+
+async def test_a_server_that_fails_for_other_reasons_never_offers_the_weaker_way(
+    gcontainer: Container, imap: FakeImap, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fake = ScriptedSmtp(working=None)  # nothing works, not even with legacy TLS
+    monkeypatch.setattr(mail_client, "_smtp_connect", fake.connect)
+    gcontainer.mail.client = MailClient(connect=lambda account: imap)
+    with pytest.raises(ToolError) as err:
+        await gcontainer.mail.add("owner", address="me@tiscali.it", password="p")
+    assert not isinstance(err.value, mail_client.LegacyTlsRequiredError)
+
+
+def test_the_relaxed_context_still_verifies_certificates() -> None:
+    import ssl
+
+    ctx = mail_client._tls(legacy=True)
+    assert ctx.verify_mode == ssl.CERT_REQUIRED and ctx.check_hostname
+    strict = mail_client._tls()
+    assert strict.minimum_version >= ssl.TLSVersion.TLSv1_2
+
+
+async def test_the_api_accepts_the_consent_flag(gclient: httpx.AsyncClient, mail) -> None:  # type: ignore[no-untyped-def]
+    ok = await gclient.post(
+        "/v1/mail/accounts",
+        json={"address": "me@tiscali.it", "password": "buona-123", "smtp_legacy_tls": True},
+    )
+    assert ok.status_code == 200 and ok.json()["reduced_security"] is True

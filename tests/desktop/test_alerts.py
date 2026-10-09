@@ -215,3 +215,50 @@ def test_add_dialog_needs_both_fields_and_servers_when_advanced(qapp: QApplicati
             "smtp_security": "starttls",
         },
     )
+
+
+def test_mail_panel_asks_before_using_an_outdated_server_and_retries_with_consent(
+    qapp: QApplication, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from PySide6.QtWidgets import QDialog
+
+    from gsoi_desktop.controller import MailAccountInfo
+    from gsoi_desktop.ui import mail_panel
+    from gsoi_desktop.ui.mail_panel import AddMailDialog, MailPanel
+
+    class Ctl:
+        def __init__(self) -> None:
+            self.tries: list[dict[str, Any]] = []
+            self.accounts: list[MailAccountInfo] = []
+
+        def mail_accounts(self) -> list[MailAccountInfo]:
+            return list(self.accounts)
+
+        def mail_add(self, address: str, password: str, servers: dict[str, Any]) -> MailAccountInfo:
+            self.tries.append(servers)
+            if not servers.get("smtp_legacy_tls"):
+                raise RuntimeError("supporta solo protocolli di sicurezza datati (TLS 1.0/1.1)")
+            a = MailAccountInfo("i", "Tiscali", address, True)
+            self.accounts.append(a)
+            return a
+
+    def fill(self: AddMailDialog) -> int:
+        self.address.setText("me@tiscali.it")
+        self.password.setText("p")
+        self._save()
+        return int(QDialog.DialogCode.Accepted)
+
+    monkeypatch.setattr(mail_panel.AddMailDialog, "exec", fill)
+    asked: list[str] = []
+    ctl = Ctl()
+    panel = MailPanel(ctl, AsyncRunner(), confirm=lambda reason: asked.append(reason) or True)  # type: ignore[arg-type]
+    panel.add_button.click()
+    wait_until(lambda: panel.list.count() == 1)
+    assert len(asked) == 1 and ctl.tries == [{}, {"smtp_legacy_tls": True}]
+    assert "sicurezza ridotta" in panel.list.item(0).text()
+
+    declined = Ctl()
+    p2 = MailPanel(declined, AsyncRunner(), confirm=lambda reason: False)  # type: ignore[arg-type]
+    p2.add_button.click()
+    wait_until(lambda: "troppo datato" in p2.message.text())
+    assert declined.tries == [{}] and p2.add_button.isEnabled()

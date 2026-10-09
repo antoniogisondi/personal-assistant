@@ -12,6 +12,7 @@ import imaplib
 import re
 import smtplib
 import ssl
+import warnings
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -45,6 +46,7 @@ class MailAccount:
     smtp_host: str = ""
     smtp_port: int = 465
     smtp_security: str = "ssl"
+    smtp_legacy_tls: bool = False  # the user accepted TLS 1.0/1.1 for the outgoing server
 
     def __repr__(self) -> str:  # never print the password
         return f"MailAccount({self.label!r}, {self.address!r})"
@@ -73,8 +75,24 @@ class MailBody(BaseModel):
 ConnectImap = Callable[[MailAccount], Any]
 
 
-def _tls() -> ssl.SSLContext:
-    return ssl.create_default_context()
+def _tls(legacy: bool = False) -> ssl.SSLContext:
+    ctx = ssl.create_default_context()  # certificate and host name are always checked
+    if legacy:
+        # Only for a server that offers nothing better, and only once the user agreed.
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            ctx.minimum_version = ssl.TLSVersion.MINIMUM_SUPPORTED
+        ctx.set_ciphers("DEFAULT:@SECLEVEL=0")
+    return ctx
+
+
+class LegacyTlsRequiredError(ToolError):
+    """The server only speaks an outdated TLS: the user must agree before it is used."""
+
+
+LEGACY_MESSAGE = (
+    "Il server di invio {host} supporta solo protocolli di sicurezza datati (TLS 1.0/1.1)."
+)
 
 
 def connect_imap(account: MailAccount) -> Any:
@@ -208,12 +226,12 @@ def build_message(
     return msg
 
 
-def _smtp_connect(host: str, port: int, security: str) -> smtplib.SMTP:
+def _smtp_connect(host: str, port: int, security: str, legacy: bool = False) -> smtplib.SMTP:
     if security == "ssl":
-        return smtplib.SMTP_SSL(host, port, context=_tls(), timeout=TIMEOUT)
+        return smtplib.SMTP_SSL(host, port, context=_tls(legacy), timeout=TIMEOUT)
     server = smtplib.SMTP(host, port, timeout=TIMEOUT)
     try:
-        server.starttls(context=_tls())
+        server.starttls(context=_tls(legacy))
     except Exception:
         server.close()
         raise
@@ -233,9 +251,15 @@ def smtp_open(account: MailAccount) -> tuple[smtplib.SMTP, int, str]:
     for port, security in _smtp_candidates(account):
         label = f"{port} ({'SSL' if security == 'ssl' else 'STARTTLS'})"
         try:
-            server = _smtp_connect(account.smtp_host, port, security)
+            server = _smtp_connect(account.smtp_host, port, security, account.smtp_legacy_tls)
         except (OSError, smtplib.SMTPException) as exc:  # includes ssl.SSLError
             problems.append(f"{label}: {_short(exc)}")
+            if (
+                isinstance(exc, ssl.SSLError)
+                and not account.smtp_legacy_tls
+                and _legacy_works(account.smtp_host, port, security)
+            ):
+                raise LegacyTlsRequiredError(LEGACY_MESSAGE.format(host=account.smtp_host)) from exc
             continue
         try:
             server.login(account.username, account.password)
@@ -249,18 +273,19 @@ def smtp_open(account: MailAccount) -> tuple[smtplib.SMTP, int, str]:
             problems.append(f"{label}: {_short(exc)}")
             continue
         return server, port, security
-    hint = ""
-    if any(
-        m in p for p in problems for m in ("HANDSHAKE_FAILURE", "UNSUPPORTED_PROTOCOL", "VERSION")
-    ):
-        hint = (
-            " Il server sembra usare un protocollo di sicurezza datato (TLS 1.0/1.1) che l'app "
-            "non accetta per la tua sicurezza: controlla sul sito del provider i server di invio."
-        )
     raise ToolError(
         f"Non riesco a collegarmi al server di invio {account.smtp_host}. "
-        "Provato: " + "; ".join(problems) + "." + hint
+        "Provato: " + "; ".join(problems) + "."
     )
+
+
+def _legacy_works(host: str, port: int, security: str) -> bool:
+    """Would an outdated TLS get through? (Handshake only: no password is sent.)"""
+    try:
+        _smtp_connect(host, port, security, legacy=True).close()
+    except (OSError, smtplib.SMTPException):
+        return False
+    return True
 
 
 def _short(exc: Exception) -> str:

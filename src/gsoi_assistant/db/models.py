@@ -231,5 +231,6 @@ class MailAccount(Base):
     smtp_host: Mapped[str] = mapped_column(String(253))
     smtp_port: Mapped[int] = mapped_column(Integer)
     smtp_security: Mapped[str] = mapped_column(String(8))  # ssl | starttls
+    smtp_legacy_tls: Mapped[bool] = mapped_column(Boolean, default=False)  # user-approved
     password_enc: Mapped[str] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)

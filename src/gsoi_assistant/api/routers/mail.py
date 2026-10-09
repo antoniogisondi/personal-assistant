@@ -12,7 +12,12 @@ router = APIRouter(prefix="/v1/mail", tags=["mail"])
 
 def _out(a: MailAccount) -> MailAccountOut:
     return MailAccountOut(
-        id=a.id, label=a.label, address=a.address, imap_host=a.imap_host, smtp_host=a.smtp_host
+        id=a.id,
+        label=a.label,
+        address=a.address,
+        imap_host=a.imap_host,
+        smtp_host=a.smtp_host,
+        reduced_security=a.smtp_legacy_tls,
     )
 
 
@@ -37,6 +42,7 @@ async def add_account(
             imap_port=body.imap_port,
             smtp_port=body.smtp_port,
             smtp_security=body.smtp_security,
+            smtp_legacy_tls=body.smtp_legacy_tls,
         )
     except ToolError as exc:
         raise HTTPException(400, str(exc)) from exc
