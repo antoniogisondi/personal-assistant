@@ -77,6 +77,9 @@ class ApiClient:
                 0, "Non riesco a contattare il servizio interno dell'assistente."
             ) from exc
 
+    def check_alerts(self, lead_minutes: int) -> dict[str, Any]:
+        return self._call("POST", "/v1/alerts/check", {"lead_minutes": lead_minutes})  # type: ignore[no-any-return]
+
     def briefing(self, channel: str = "voice") -> dict[str, Any]:
         return self._call("POST", "/v1/briefing", {"channel": channel})  # type: ignore[no-any-return]
 

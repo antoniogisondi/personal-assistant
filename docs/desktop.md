@@ -144,3 +144,14 @@ poi in Impostazioni → «Qualità voce» scegli **Massimo (turbo)**: scarica il
 `large-v3-turbo` (~1,6 GB, una volta). Sulla scheda video la ricerca è più ampia (beam 5) e il
 riconoscimento resta sotto il secondo. Se la scheda non funziona (librerie mancanti, driver),
 l'app lo scrive nel log e ricade sul processore.
+
+## Avvisi (nuove email e appuntamenti)
+
+Con Google collegato, l'app controlla ogni 90 secondi (il primo controllo dopo 20 s dall'avvio) se
+ci sono **nuove email** (posta vera: escluse promozioni, social e forum) o appuntamenti che
+iniziano a breve (predefinito: 10 minuti prima, regolabile). Ogni novità compare come notifica
+vicino all'orologio e nella conversazione, e viene detta a voce, tranne nella fascia silenziosa
+(predefinita 23:00–07:00) o se stai parlando con l'assistente. Il primo controllo registra soltanto
+la posta già presente, quindi collegare l'account non provoca una valanga di avvisi. Ogni elemento
+è annunciato una sola volta. Il testo delle email non viene mai passato al modello da questa
+funzione: serve solo a mostrare e leggere l'avviso. Si regola da Impostazioni.

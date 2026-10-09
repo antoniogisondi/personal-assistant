@@ -6,6 +6,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
+from gsoi_desktop.alerts import Alert, parse_alerts
 from gsoi_desktop.client import ApiError
 from gsoi_desktop.sentences import SentenceSplitter
 
@@ -22,6 +23,7 @@ class Api(Protocol):
         on_event: Callable[[str, dict[str, Any]], None],
     ) -> None: ...
     def briefing(self, channel: str = ...) -> dict[str, Any]: ...
+    def check_alerts(self, lead_minutes: int) -> dict[str, Any]: ...
     def decide(
         self, approval_id: str, approve: bool, confirm_tool: str | None
     ) -> dict[str, Any]: ...
@@ -128,6 +130,9 @@ class AssistantController:
         if not result:
             raise ApiError(0, "Nessuna risposta dal servizio interno.")
         return _turn(result)
+
+    def check_alerts(self, lead_minutes: int) -> list[Alert]:
+        return parse_alerts(self._api.check_alerts(lead_minutes))
 
     def briefing(self) -> Turn:
         data = self._api.briefing()

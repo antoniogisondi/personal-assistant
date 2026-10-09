@@ -324,6 +324,19 @@ class MainWindow(QMainWindow):
             self.caption.setText(_caption_text(text))
             self._speaker.enqueue(text)
 
+    def announce(self, text: str) -> bool:
+        """Say something unprompted (a new-mail alert). Not while a conversation is going on."""
+        if self._busy or self._voice_turn or self._awaiting_speech_end or self._speaking:
+            return False
+        self._voice_turn = True
+        self._speaker.enqueue(text)
+        self._awaiting_speech_end = bool(self._speaker.active)
+        if self._awaiting_speech_end:
+            self._speech_timer.start(self._speech_safety_ms(text))
+        else:
+            self._finish_voice_turn()
+        return True
+
     def request_briefing(self) -> None:
         if self._busy or not self._is_configured():
             return

@@ -92,6 +92,15 @@ class VoicePipeline:
                 self._capture = None
                 self._set(VoiceState.WAITING)
 
+    def hold(self) -> bool:
+        """The assistant is about to speak on its own (an alert): ignore the microphone meanwhile.
+        False if the user is in the middle of something (speaking a command)."""
+        with self._lock:
+            if self._state is VoiceState.WAITING:
+                self._set(VoiceState.BUSY)
+                return True
+            return self._state is VoiceState.OFF
+
     def resume(self) -> None:
         """The assistant finished (answer shown and spoken): listen for the wake word again."""
         with self._lock:

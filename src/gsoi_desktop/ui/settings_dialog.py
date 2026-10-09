@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QPushButton,
+    QSpinBox,
     QVBoxLayout,
     QWidget,
 )
@@ -102,6 +103,22 @@ class SettingsDialog(QDialog):
         self.tts.addItem("Voce di Windows (robotica)", ("windows", "paola"))
         wanted = (config.tts, config.tts_voice)
         self.tts.setCurrentIndex(max(0, self.tts.findData(wanted)))
+        self.alerts = QCheckBox("Avvisami di nuove email e appuntamenti in arrivo")
+        self.alerts.setChecked(config.alerts)
+        self.alerts_speak = QCheckBox("...anche a voce (non durante la fascia silenziosa)")
+        self.alerts_speak.setChecked(config.alerts_speak)
+        self.alerts_lead = QSpinBox()
+        self.alerts_lead.setRange(1, 60)
+        self.alerts_lead.setSuffix(" min prima")
+        self.alerts_lead.setValue(config.alerts_lead_minutes)
+        self.quiet_from = QSpinBox()
+        self.quiet_from.setRange(0, 23)
+        self.quiet_from.setSuffix(":00")
+        self.quiet_from.setValue(config.quiet_from)
+        self.quiet_to = QSpinBox()
+        self.quiet_to.setRange(0, 23)
+        self.quiet_to.setSuffix(":00")
+        self.quiet_to.setValue(config.quiet_to)
         self.voice_test_button = QPushButton("Prova il microfono e «Hey Jarvis»...")
         self.voice_test_button.clicked.connect(self.voice_test_requested.emit)
         self.enroll_button = QPushButton("Insegna «Hey Jarvis» alla tua voce...")
@@ -140,6 +157,13 @@ class SettingsDialog(QDialog):
         for w in (self.autostart, self.read_aloud, self.tool_calling, self.voice):
             layout.addWidget(w)
         layout.addLayout(voice_form)
+        alerts_form = QFormLayout()
+        alerts_form.addRow("Promemoria appuntamenti", self.alerts_lead)
+        alerts_form.addRow("Fascia silenziosa dalle", self.quiet_from)
+        alerts_form.addRow("alle", self.quiet_to)
+        layout.addWidget(self.alerts)
+        layout.addWidget(self.alerts_speak)
+        layout.addLayout(alerts_form)
         layout.addWidget(self.voice_test_button)
         layout.addWidget(self.enroll_button)
         layout.addWidget(self.voice_note)
@@ -192,6 +216,11 @@ class SettingsDialog(QDialog):
                 "microphone": self.mic.currentData(),
                 "wake_threshold": round(self.wake_threshold.value(), 2),
                 "end_pause": round(self.end_pause.value(), 1),
+                "alerts": self.alerts.isChecked(),
+                "alerts_speak": self.alerts_speak.isChecked(),
+                "alerts_lead_minutes": self.alerts_lead.value(),
+                "quiet_from": self.quiet_from.value(),
+                "quiet_to": self.quiet_to.value(),
                 "tts": self.tts.currentData()[0],
                 "tts_voice": self.tts.currentData()[1],
             }

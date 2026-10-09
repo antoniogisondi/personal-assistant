@@ -650,3 +650,23 @@ def test_the_service_frees_the_model_when_voice_is_disabled(
     assert closed == []
     service.disable()
     assert closed == [True]
+
+
+def test_hold_mutes_the_microphone_for_an_unprompted_announcement() -> None:
+    p, wake, _, rec = make_pipeline()
+    assert p.hold()  # voice off: nothing to mute
+    p.enable()
+    assert p.hold() and p.state is VoiceState.BUSY
+    wake.script = [0.99] * 3
+    feed_all(p, quiet(0.3))
+    assert rec.wakes == 0
+    p.resume()
+    assert p.state is VoiceState.WAITING
+    wake.script = [0.9]
+    p.feed(quiet(0.1)[0])  # inside the post-answer cooldown
+    p.cancel()
+    p2, wake2, _, _ = make_pipeline()
+    p2.enable()
+    wake2.script = [0.9]
+    p2.feed(quiet(0.1)[0])
+    assert p2.state is VoiceState.LISTENING and not p2.hold()  # the user is speaking

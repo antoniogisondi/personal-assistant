@@ -424,3 +424,43 @@ class ConnectorConfigStore:
                 delete(models.ConnectorConfig).where(models.ConnectorConfig.provider == provider)
             )
             return bool(result.rowcount)  # type: ignore[attr-defined]
+
+
+class SeenStore:
+    def __init__(self, sf: SessionFactory) -> None:
+        self._sf = sf
+
+    async def has_any(self, user_id: str, kind: str) -> bool:
+        async with self._sf() as s:
+            row = await s.execute(
+                select(models.SeenItem.key)
+                .where(models.SeenItem.user_id == user_id, models.SeenItem.kind == kind)
+                .limit(1)
+            )
+            return row.first() is not None
+
+    async def new_keys(self, user_id: str, kind: str, keys: list[str]) -> list[str]:
+        if not keys:
+            return []
+        async with self._sf() as s:
+            rows = await s.execute(
+                select(models.SeenItem.key).where(
+                    models.SeenItem.user_id == user_id,
+                    models.SeenItem.kind == kind,
+                    models.SeenItem.key.in_(keys),
+                )
+            )
+            seen = {r[0] for r in rows}
+        return [k for k in keys if k not in seen]
+
+    async def add(self, user_id: str, kind: str, keys: list[str]) -> None:
+        if not keys:
+            return
+        async with self._sf() as s, s.begin():
+            for key in dict.fromkeys(keys):
+                if await s.get(models.SeenItem, (user_id, kind, key)) is None:
+                    s.add(models.SeenItem(user_id=user_id, kind=kind, key=key))
+
+    async def prune(self, older_than: datetime) -> None:
+        async with self._sf() as s, s.begin():
+            await s.execute(delete(models.SeenItem).where(models.SeenItem.seen_at < older_than))

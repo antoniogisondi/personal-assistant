@@ -57,6 +57,11 @@ class DesktopConfig(BaseModel):
     tts: Literal["piper", "windows"] = "piper"  # natural local voice, or the Windows one
     tts_voice: Literal["paola", "riccardo"] = "paola"
     end_pause: float = Field(default=1.3, ge=0.7, le=6.0)  # silence that ends a long command
+    alerts: bool = True  # tell me about new email and upcoming appointments
+    alerts_speak: bool = True  # ...also aloud (outside quiet hours)
+    alerts_lead_minutes: int = Field(default=10, ge=1, le=60)
+    quiet_from: int = Field(default=23, ge=0, le=23)  # alerts are not spoken between these hours
+    quiet_to: int = Field(default=7, ge=0, le=23)
     personal_wake: bool = True  # use the model taught to the user's voice, when there is one
 
     def is_configured(self, has_key: bool) -> bool:

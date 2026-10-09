@@ -109,3 +109,21 @@ class GoogleConfigBody(BaseModel):
 
 class ConnectStartOut(BaseModel):
     auth_url: str = Field(description="Open this URL in your browser to grant access.")
+
+
+class AlertsCheckBody(BaseModel):
+    lead_minutes: int = Field(default=10, ge=1, le=120, description="Warn this long before events.")
+
+
+class AlertOut(BaseModel):
+    kind: str
+    key: str
+    title: str
+    text: str
+    spoken: str
+    important: bool
+
+
+class AlertsOut(BaseModel):
+    alerts: list[AlertOut]
+    unavailable: list[str]

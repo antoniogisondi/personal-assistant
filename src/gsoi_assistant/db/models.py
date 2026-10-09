@@ -202,3 +202,14 @@ class ConnectorConfig(Base):
     client_id: Mapped[str] = mapped_column(String(256))
     client_secret_enc: Mapped[str] = mapped_column(Text)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+class SeenItem(Base):
+    """Something already announced to the user (an email id, an event occurrence)."""
+
+    __tablename__ = "seen_items"
+
+    user_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    kind: Mapped[str] = mapped_column(String(16), primary_key=True)
+    key: Mapped[str] = mapped_column(String(200), primary_key=True)
+    seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)

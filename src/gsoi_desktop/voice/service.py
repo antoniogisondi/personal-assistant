@@ -122,6 +122,10 @@ class VoiceService:
         if stt is not None and hasattr(stt, "close"):
             stt.close()  # frees the graphics memory the recognition model held
 
+    def hold(self) -> bool:
+        """Mute the microphone while the assistant speaks unprompted. False: user is talking."""
+        return True if self._pipeline is None else self._pipeline.hold()
+
     def resume(self) -> None:
         if self._pipeline is not None:
             self._pipeline.resume()

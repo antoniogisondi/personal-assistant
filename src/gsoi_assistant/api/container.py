@@ -20,6 +20,7 @@ from gsoi_assistant.connectors.google.auth import GoogleAuth
 from gsoi_assistant.connectors.google.calendar import CalendarClient, make_calendar_tools
 from gsoi_assistant.connectors.google.gmail import GmailClient, make_gmail_tools
 from gsoi_assistant.connectors.google.hub import GoogleHub, load_bundled_app
+from gsoi_assistant.connectors.watch import Watcher
 from gsoi_assistant.db.base import make_engine, make_session_factory
 from gsoi_assistant.db.repositories import SqlRepository
 from gsoi_assistant.db.stores import (
@@ -28,6 +29,7 @@ from gsoi_assistant.db.stores import (
     ConnectorConfigStore,
     NoteStore,
     OAuthStore,
+    SeenStore,
     TaskStore,
     ToolCallStore,
 )
@@ -61,6 +63,7 @@ class Container:
     agent: AgentService
     hub: GoogleHub
     google_api: GoogleApi
+    watcher: Watcher
 
     @property
     def google(self) -> GoogleAuth | None:
@@ -184,4 +187,5 @@ def build_container(
         agent,
         hub,
         google_api,
+        Watcher(gmail, calendar, SeenStore(sf), tz),
     )

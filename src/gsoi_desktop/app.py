@@ -138,6 +138,7 @@ def run_gui(minimized: bool, quit_after_ms: int | None = None) -> int:
     from gsoi_desktop.autostart import Autostart
     from gsoi_desktop.client import ApiClient
     from gsoi_desktop.controller import AssistantController
+    from gsoi_desktop.ui.alert_watcher import AlertWatcher
     from gsoi_desktop.ui.async_call import AsyncRunner
     from gsoi_desktop.ui.icon import make_icon
     from gsoi_desktop.ui.main_window import MainWindow
@@ -410,12 +411,39 @@ def run_gui(minimized: bool, quit_after_ms: int | None = None) -> int:
     window.open_services.connect(show_services)
 
     def quit_app() -> None:
+        watcher.stop()
         voice.disable()
         speaker.close()
         tray.hide()
         app.quit()
 
     tray = Tray(icon, window, on_briefing=window.request_briefing, on_quit=quit_app)
+
+    def on_alerts(found: object) -> None:
+        from datetime import datetime
+
+        from gsoi_desktop.alerts import is_quiet, spoken_summary
+
+        if not isinstance(found, list) or not found:
+            return
+        cfg = state["config"]
+        for a in found[:3]:
+            tray.notify(a.title, a.text)
+        for a in found:
+            window.add("note", f"{a.title}" + (f" — {a.text}" if a.text else ""))
+        speak = cfg.alerts_speak and not is_quiet(datetime.now().hour, cfg.quiet_from, cfg.quiet_to)
+        # hold(): the microphone is muted while the assistant talks on its own
+        if speak and voice.hold() and not window.announce(spoken_summary(found)):
+            voice.resume()
+
+    watcher = AlertWatcher(
+        runner,
+        controller.check_alerts,
+        enabled=lambda: state["config"].alerts and configured(),
+        lead_minutes=lambda: state["config"].alerts_lead_minutes,
+    )
+    watcher.alerts.connect(on_alerts)
+    watcher.start()
     window.hide_on_close = tray.available  # without a tray, closing really quits
     app.aboutToQuit.connect(runtime.stop)
 
