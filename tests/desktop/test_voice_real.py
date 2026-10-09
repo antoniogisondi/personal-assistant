@@ -137,3 +137,20 @@ def test_real_speech_recognition_on_recorded_audio(tmp_path: Path) -> None:
     ).lower()
     assert "chrome" in text and "open" in text
     assert stt.transcribe(silence(2.0)) == ""  # silence never turns into an invented sentence
+
+
+@needs_wake
+def test_noises_without_speech_never_wake_it_even_when_very_loud() -> None:
+    rng = np.random.default_rng(1)
+    noise = (rng.standard_normal(16000 * 4) * 6000).astype(np.int16)  # loud hiss
+    clicks = np.zeros(16000 * 4, np.int16)
+    for i in range(0, len(clicks), 8000):
+        clicks[i : i + 200] = 20000  # knocks
+    for sound in (noise, clicks):
+        assert best_score(sound) < 0.3
+    assert OpenWakeWordDetector().vad_enabled
+
+
+@needs_wake
+def test_the_wake_word_still_works_with_the_speech_gate() -> None:
+    assert best_score(load("wake_hey_jarvis_1")) > 0.5

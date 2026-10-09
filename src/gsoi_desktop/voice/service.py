@@ -99,6 +99,7 @@ class VoiceService:
             self._events,
             wake_threshold=config.wake_threshold,
             end_pause=config.end_pause,
+            patience=2,
         )
         runner = VoiceRunner(pipeline, self._source_factory(config.microphone))
         runner.start()  # raises if the microphone cannot be opened

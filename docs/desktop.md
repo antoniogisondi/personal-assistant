@@ -173,3 +173,11 @@ del provider.
 Se preferisci scrivere dal tuo programma di posta (Outlook), chiedi «prepara una email a Marco
 con Outlook»: l'assistente apre una nuova bozza già compilata nel programma di posta predefinito
 di Windows e **tu premi Invia**; l'assistente non invia nulla in quel caso.
+
+## Rumori e falsi risvegli
+
+La parola di attivazione passa da due controlli prima di svegliare l'assistente: un rilevatore di
+voce umana (rumori, colpi, fruscii e musica non lo superano, anche con la soglia molto bassa) e la
+conferma su almeno due blocchi di audio consecutivi (un picco isolato non basta). Durante le
+risposte il rilevatore non sente la voce dell'assistente e, dopo ogni risposta, resta sordo per
+circa mezzo secondo.

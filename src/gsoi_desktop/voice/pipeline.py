@@ -44,6 +44,7 @@ class VoicePipeline:
         wake_threshold: float = 0.5,
         cooldown_frames: int = 8,
         end_pause: float = 1.3,
+        patience: int = 1,
     ) -> None:
         self._wake = wake
         self._stt = transcriber
@@ -51,6 +52,8 @@ class VoicePipeline:
         self._threshold = wake_threshold
         self._cooldown_frames = cooldown_frames
         self._end_pause = end_pause
+        self._patience = max(1, patience)  # consecutive frames above the threshold to wake
+        self._streak = 0
         self._cooldown = 0
         self._last_logged = 0.0
         self._ambient = 0.0  # slow estimate of the room's background level
@@ -106,6 +109,7 @@ class VoicePipeline:
         with self._lock:
             if self._state is VoiceState.BUSY:
                 self._cooldown = self._cooldown_frames
+                self._streak = 0
                 self._set(VoiceState.WAITING)
 
     # ---- audio (the worker thread) --------------------------------------------------------
@@ -143,11 +147,14 @@ class VoicePipeline:
         self._ambient = capped if not self._ambient else 0.97 * self._ambient + 0.03 * capped
         if self._cooldown > 0:
             self._cooldown -= 1
+            self._streak = 0
             return
         score = self._wake.predict(frame)
         if score >= self._threshold * 0.6:
             self._log_score(score)
-        if score >= self._threshold:
+        self._streak = self._streak + 1 if score >= self._threshold else 0
+        if self._streak >= self._patience:  # one loud frame is a noise, a phrase lasts longer
+            self._streak = 0
             log.info("wake_detected", score=round(score, 2), threshold=self._threshold)
             self._events.wake()
             self._begin_capture()

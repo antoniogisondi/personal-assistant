@@ -44,15 +44,44 @@ def ensure_wake_models() -> None:
         ) from exc
 
 
+VAD_THRESHOLD = 0.5  # how sure the speech detector must be that a person is talking
+
+
 class OpenWakeWordDetector:
-    def __init__(self, threshold: float = 0.5) -> None:
+    """The stock «Hey Jarvis» model, gated by a speech detector (Silero VAD): a door slam, a
+    keyboard or the room's noise is not speech, so it can never wake the assistant even when the
+    sensitivity is high."""
+
+    def __init__(self, threshold: float = 0.5, *, vad: bool = True) -> None:
         self.threshold = threshold
+        self.vad_enabled = False
         try:
             from openwakeword.model import Model
-
-            self._model: Any = Model(wakeword_models=[WAKE_MODEL], inference_framework="onnx")
         except Exception as exc:
             raise VoiceUnavailableError(f"Parola di attivazione non disponibile: {exc}") from exc
+        try:
+            if not vad:
+                raise ValueError("speech gate switched off")
+            self._model: Any = Model(
+                wakeword_models=[WAKE_MODEL],
+                inference_framework="onnx",
+                vad_threshold=VAD_THRESHOLD,
+            )
+            self.vad_enabled = True
+        except Exception:
+            try:  # the speech detector is not available: work without it rather than not at all
+                self._model = Model(wakeword_models=[WAKE_MODEL], inference_framework="onnx")
+            except Exception as exc:
+                raise VoiceUnavailableError(
+                    f"Parola di attivazione non disponibile: {exc}"
+                ) from exc
+
+    def speech_recently(self) -> bool:
+        """Was somebody speaking about half a second ago (while the phrase was being said)?"""
+        if not self.vad_enabled:
+            return True
+        frames = list(self._model.vad.prediction_buffer)[-7:-4]
+        return bool(frames) and float(max(frames)) >= VAD_THRESHOLD
 
     def predict(self, frame: np.ndarray) -> float:
         scores: dict[str, float] = self._model.predict(frame)

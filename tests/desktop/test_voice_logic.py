@@ -670,3 +670,15 @@ def test_hold_mutes_the_microphone_for_an_unprompted_announcement() -> None:
     wake2.script = [0.9]
     p2.feed(quiet(0.1)[0])
     assert p2.state is VoiceState.LISTENING and not p2.hold()  # the user is speaking
+
+
+def test_one_noisy_frame_does_not_wake_but_a_sustained_score_does() -> None:
+    p, wake, _, rec = make_pipeline()
+    p._patience = 2
+    p.enable()
+    wake.script = [0.9, 0.0, 0.9, 0.0, 0.9]  # isolated spikes: noises
+    feed_all(p, quiet(0.6))
+    assert rec.wakes == 0 and p.state is VoiceState.WAITING
+    wake.script = [0.9, 0.8]
+    feed_all(p, quiet(0.3))
+    assert rec.wakes == 1 and p.state is VoiceState.LISTENING

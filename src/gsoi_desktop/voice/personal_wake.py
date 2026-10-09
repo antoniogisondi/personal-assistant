@@ -275,6 +275,9 @@ class PersonalWakeDetector:
         score = self._base.predict(frame)
         if self._personal is None:
             return score
+        if not self._base.speech_recently():  # noise, not a voice: the personal model stays quiet
+            self.last_personal = 0.0
+            return score
         features = self._base.embeddings()
         self.last_personal = float(self._personal.score(features[None, ...])[0])
         return max(score, self.last_personal * PERSONAL_SCALE)
