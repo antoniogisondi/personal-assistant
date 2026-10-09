@@ -478,6 +478,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--voice-test", action="store_true", help="diagnose the microphone and the wake word"
     )
+    parser.add_argument(
+        "--mail-diag",
+        metavar="HOST",
+        help="show which ports and TLS versions an outgoing mail server accepts",
+    )
     return parser
 
 
@@ -487,6 +492,11 @@ def main(argv: list[str] | None = None) -> int:
         return selftest()
     if args.voice_test:
         return voice_test()
+    if args.mail_diag:
+        from gsoi_assistant.connectors.mail.diagnostics import diagnose
+
+        diagnose(args.mail_diag)
+        return 0
     if args.gui_selftest:
         code = run_gui(minimized=False, quit_after_ms=1500)
         return _record(None, code)

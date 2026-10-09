@@ -365,3 +365,30 @@ async def test_the_working_port_is_remembered_when_the_account_is_added(
     assert (acct.smtp_port, acct.smtp_security) == (587, "starttls")
     stored = (await gcontainer.mail.list("owner"))[0]
     assert (stored.smtp_port, stored.smtp_security) == (587, "starttls")
+
+
+def test_diagnosis_reports_unreachable_ports_and_unknown_hosts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import socket
+
+    from gsoi_assistant.connectors.mail import diagnostics
+
+    lines: list[str] = []
+    monkeypatch.setattr(socket, "gethostbyname", lambda h: "192.0.2.1")
+
+    def refuse(address: Any, timeout: float = 0) -> Any:
+        raise OSError("timed out")
+
+    monkeypatch.setattr(socket, "create_connection", refuse)
+    diagnostics.diagnose("smtp.example.it", lines.append)
+    assert lines[0] == "smtp.example.it -> 192.0.2.1"
+    assert sum("non raggiungibile" in line for line in lines) == 4
+
+    def unknown(host: str) -> str:
+        raise OSError("nope")
+
+    monkeypatch.setattr(socket, "gethostbyname", unknown)
+    lines.clear()
+    diagnostics.diagnose("nessun.host.it", lines.append)
+    assert "non si risolve" in lines[0]

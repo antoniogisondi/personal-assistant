@@ -21,6 +21,14 @@ def calls(monkeypatch: pytest.MonkeyPatch) -> list[tuple[str, object]]:
     return seen
 
 
+def test_mail_diag_takes_a_host_and_dispatches(monkeypatch: pytest.MonkeyPatch) -> None:
+    from gsoi_assistant.connectors.mail import diagnostics
+
+    seen: list[str] = []
+    monkeypatch.setattr(diagnostics, "diagnose", lambda host, say=print: seen.append(host))
+    assert app.main(["--mail-diag", "smtp.example.it"]) == 0 and seen == ["smtp.example.it"]
+
+
 def test_every_documented_flag_parses() -> None:
     parser = app.build_parser()
     for flag in ("--selftest", "--minimized", "--gui-selftest", "--voice-test"):

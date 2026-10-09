@@ -181,3 +181,9 @@ voce umana (rumori, colpi, fruscii e musica non lo superano, anche con la soglia
 conferma su almeno due blocchi di audio consecutivi (un picco isolato non basta). Durante le
 risposte il rilevatore non sente la voce dell'assistente e, dopo ogni risposta, resta sordo per
 circa mezzo secondo.
+
+### Se una casella non si collega
+
+`gsoi-desktop --mail-diag smtp.tuoprovider.it` mostra quali porte rispondono e quali versioni di
+TLS accetta il server di invio (non invia nulla e non usa password). Serve a distinguere una porta
+chiusa dal router o dal provider da un server con sicurezza datata.
